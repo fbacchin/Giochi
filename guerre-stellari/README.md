@@ -34,7 +34,7 @@ FUOCO e SILURO a destra.
 ## Esecuzione
 
 Apri `index.html` in un browser qualsiasi, oppure visita
-`https://fbacchin.github.io/giochi/guerre-stellari/`.
+`https://fbacchin.github.io/Giochi/guerre-stellari/`.
 
 Il record personale viene salvato in `localStorage`.
 
