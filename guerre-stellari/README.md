@@ -9,14 +9,18 @@ canvas e suoni sintetizzati con WebAudio. Funziona su desktop e su mobile (touch
 
 ## Come si gioca
 
-1. **Battaglia spaziale** — 3 ondate di caccia imperiali da abbattere mentre la
+1. **Battaglia spaziale (X‑wing)** — 2 ondate di caccia imperiali mentre la
    Morte Nera si avvicina all'orizzonte.
-2. **La trincea** — corsa in pseudo‑3D: schiva le sporgenze attaccate alle pareti,
-   abbatti torrette e caccia TIE che ti arrivano incontro al centro del tunnel, e
-   raggiungi il condotto di scarico.
-3. **Il colpo finale** — allineati al condotto, aspetta l'aggancio del computer di
-   puntamento e lancia un siluro protonico. Se lo manchi, nuovo passaggio… finché
-   hai siluri.
+2. **Millennium Falcon** — Han ti lascia i comandi: quadrilaser a rosata di tre
+   colpi, 4 scudi e 2 ondate più dure.
+3. **Duello con Darth Vader** — a bordo della Morte Nera, spada laser alla mano:
+   attacca (SPAZIO), para al momento giusto (GIÙ/S) per farlo barcollare, e
+   attento alla spinta di Forza.
+4. **La trincea** — corsa in pseudo‑3D: schiva le sporgenze attaccate alle pareti,
+   abbatti torrette e caccia TIE che ti arrivano incontro al centro del tunnel.
+5. **Il colpo finale** — allineati al condotto di scarico, aspetta l'aggancio del
+   computer di puntamento e lancia un siluro protonico. Se lo manchi, nuovo
+   passaggio… finché hai siluri.
 
 Lo spirito di Yoda ti accompagna: appare all'inizio della missione e
 all'ingresso nella trincea. «Che la Forza sia con te…»
@@ -25,8 +29,9 @@ all'ingresso nella trincea. «Che la Forza sia con te…»
 
 | Comando | Azione |
 |---|---|
-| Frecce / WASD | muovi il caccia |
-| SPAZIO | laser |
+| Frecce / WASD | muovi il caccia (o Luke nel duello) |
+| SPAZIO | laser / attacco con la spada |
+| GIÙ / S | parata nel duello |
 | X | siluro protonico |
 | P | pausa |
 | M | audio on/off |

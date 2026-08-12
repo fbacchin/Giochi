@@ -129,6 +129,11 @@ const AudioFX = {
   lock()       { this.blip(880, 880, 0.07, "square", 0.12); },
   warn()       { this.blip(520, 300, 0.09, "square", 0.09); },
   force()      { this.blip(392, 392, 0.6, "sine", 0.12); this.blip(587, 587, 0.85, "sine", 0.08); },
+  swing()      { this.noise(0.18, 0.22, 3200, 500); },
+  clash()      { this.blip(1250, 950, 0.16, "square", 0.18); this.blip(1900, 1500, 0.2, "sawtooth", 0.1); this.noise(0.14, 0.28, 4200, 900); },
+  thud()       { this.blip(170, 55, 0.22, "triangle", 0.34); this.noise(0.12, 0.2, 900, 250); },
+  breath()     { this.noise(0.55, 0.2, 850, 280); },
+  forceP()     { this.blip(70, 150, 0.7, "sine", 0.3); this.noise(0.5, 0.18, 400, 1800); },
   wave()       { this.blip(440, 660, 0.18, "square", 0.14); },
   bigBoom() {
     this.noise(2.8, 0.8, 3200, 60);
@@ -201,9 +206,9 @@ canvas.addEventListener("touchstart", (e) => {
   }
   for (const t of e.changedTouches) {
     if (inCircle(t.clientX, t.clientY, fireBtn())) touchState.fireId = t.identifier;
-    else if (G.screen === "trench" && inCircle(t.clientX, t.clientY, torpBtn())) {
+    else if ((G.screen === "trench" || G.screen === "duel") && inCircle(t.clientX, t.clientY, torpBtn())) {
       touchState.torpId = t.identifier;
-      pressedCodes.add("KeyX");
+      if (G.screen === "trench") pressedCodes.add("KeyX");
     } else if (t.clientX < W * 0.62 && touchState.moveId === null) {
       touchState.moveId = t.identifier;
       touchState.mx = t.clientX; touchState.my = t.clientY;
@@ -250,10 +255,16 @@ function onTouchDrag(dx, dy) {
   } else if (G.screen === "trench" && trench) {
     trench.ship.x = clamp(trench.ship.x + dx * 0.005, -0.8, 0.8);
     trench.ship.y = clamp(trench.ship.y - dy * 0.005, 0.08, 1.12);
+  } else if (G.screen === "duel" && duel) {
+    duel.luke.x = clamp(duel.luke.x + dx * 1.4, W * 0.06, W * 0.94);
+    duel.luke.moving = 0.15;
   }
 }
 
 const fireHeld = () => keys["Space"] || touchState.fireId !== null;
+const blockHeld = () =>
+  keys["ArrowDown"] || keys["KeyS"] || keys["KeyX"] ||
+  keys["ControlLeft"] || keys["ControlRight"] || touchState.torpId !== null;
 
 // ---------------------------------------------------------- stato globale
 const G = {
@@ -266,6 +277,8 @@ const G = {
   overReason: "",
   spaceStartScore: 0,
   trenchStartScore: 0,
+  duelStartScore: 0,
+  spacePhase: "xwing",
   diedIn: "space",
   time: 0,
 };
@@ -438,6 +451,55 @@ function drawPlayerTop(x, y, vx, flick) {
   ctx.restore();
 }
 
+function drawFalconTop(x, y, vx) {
+  ctx.save();
+  ctx.translate(x, y);
+  const b = clamp((vx || 0) / 340, -1, 1);
+  ctx.rotate(b * 0.1);
+
+  // scia dei motori
+  const fl = 10 + Math.random() * 8;
+  ctx.fillStyle = "rgba(120,190,255,0.75)";
+  ctx.fillRect(-16, 26, 32, fl * 0.35);
+
+  // scafo circolare
+  const g = ctx.createRadialGradient(-8, -8, 4, 0, 0, 32);
+  g.addColorStop(0, "#d9dde6");
+  g.addColorStop(0.7, "#b9bfcc");
+  g.addColorStop(1, "#8d94a5");
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.ellipse(0, 0, 28, 26, 0, 0, TAU); ctx.fill();
+  ctx.strokeStyle = "#6a7186"; ctx.lineWidth = 1.5; ctx.stroke();
+
+  // mandibole frontali
+  ctx.fillStyle = "#c4c9d6";
+  ctx.strokeStyle = "#6a7186"; ctx.lineWidth = 1;
+  poly([[-14, -18], [-5, -22], [-5, -40], [-14, -38]]); ctx.fill(); ctx.stroke();
+  poly([[14, -18], [5, -22], [5, -40], [14, -38]]); ctx.fill(); ctx.stroke();
+
+  // cockpit laterale (a destra)
+  ctx.fillStyle = "#b9bfcc";
+  ctx.fillRect(20, -8, 12, 7);
+  ctx.beginPath(); ctx.arc(33, -4.5, 6, 0, TAU); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = "#28303f";
+  ctx.beginPath(); ctx.arc(34, -4.5, 3.2, 0, TAU); ctx.fill();
+
+  // parabola e dettagli
+  ctx.fillStyle = "#8d94a5";
+  ctx.beginPath(); ctx.arc(-7, -6, 5, 0, TAU); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = "#6a7186";
+  ctx.beginPath(); ctx.arc(-7, -6, 1.6, 0, TAU); ctx.fill();
+  ctx.strokeStyle = "rgba(90,100,125,0.5)";
+  ctx.beginPath(); ctx.arc(0, 0, 18, 0.4, 2.4); ctx.stroke();
+  ctx.beginPath(); ctx.arc(0, 0, 12, 3.5, 5.3); ctx.stroke();
+
+  // torretta centrale
+  ctx.fillStyle = "#4a5570";
+  ctx.beginPath(); ctx.arc(0, 2, 4, 0, TAU); ctx.fill();
+
+  ctx.restore();
+}
+
 function drawTIE(x, y, scl) {
   ctx.save();
   ctx.translate(x, y);
@@ -557,30 +619,38 @@ const EXPL_COLS = ["#ffd98a", "#ff9d4d", "#ff5c33", "#ffffff", "#ffe9c9"];
 // ============================================================
 let space = null;
 
-function initSpace() {
+function initSpace(shipType, carryLives) {
+  const falcon = shipType === "falcon";
   space = {
-    player: { x: W / 2, y: H * 0.8, lives: 3, shield: 3, inv: 0 },
+    shipType: falcon ? "falcon" : "xwing",
+    player: { x: W / 2, y: H * 0.8, lives: carryLives || 3, shield: falcon ? 4 : 3, inv: 0 },
     lasers: [], ebolts: [], enemies: [], parts: [],
-    wave: 1, state: "intro", stateT: 3.4, t: 0,
+    wave: 1, state: "intro", stateT: falcon ? 1.8 : 3.4, t: 0,
     queue: [], fireCd: 0, tip: 0,
     scroll: 0, kills: 0,
+    hitR: falcon ? 23 : 17,
   };
+  G.spacePhase = space.shipType;
   G.spaceStartScore = G.score;
   buildWave(1);
-  showYoda(3.2);
+  if (!falcon) showYoda(3.2);
 }
 
 function buildWave(n) {
   const q = [];
-  if (n === 1) {
+  const falcon = space.shipType === "falcon";
+  if (!falcon && n === 1) {
     const lanes = [0.25, 0.75, 0.4, 0.6, 0.3, 0.7, 0.5, 0.55];
     lanes.forEach((lx, i) => q.push({ t: i * 1.05, type: "drift", x: lx, sp: 95, amp: 55 }));
-  } else if (n === 2) {
+  } else if (!falcon) {
     for (let i = 0; i < 6; i++) q.push({ t: i * 0.9, type: "drift", x: 0.2 + 0.6 * ((i * 37) % 100) / 100, sp: 115, amp: 75 });
-    for (let i = 0; i < 6; i++) q.push({ t: 2 + i * 1.5, type: "diver", x: 0.15 + 0.7 * ((i * 53) % 100) / 100 });
+    for (let i = 0; i < 5; i++) q.push({ t: 2 + i * 1.5, type: "diver", x: 0.15 + 0.7 * ((i * 53) % 100) / 100 });
+  } else if (n === 1) {
+    for (let i = 0; i < 11; i++) q.push({ t: i * 0.7, type: "drift", x: 0.15 + 0.7 * ((i * 41) % 100) / 100, sp: 120, amp: 80 });
+    for (let i = 0; i < 3; i++) q.push({ t: 2.5 + i * 2, type: "diver", x: 0.15 + 0.7 * ((i * 53) % 100) / 100 });
   } else {
-    for (let i = 0; i < 9; i++) q.push({ t: i * 0.75, type: "drift", x: 0.15 + 0.7 * ((i * 41) % 100) / 100, sp: 130, amp: 95 });
-    for (let i = 0; i < 7; i++) q.push({ t: 1.5 + i * 1.2, type: "diver", x: 0.1 + 0.8 * ((i * 67) % 100) / 100 });
+    for (let i = 0; i < 10; i++) q.push({ t: i * 0.65, type: "drift", x: 0.15 + 0.7 * ((i * 41) % 100) / 100, sp: 135, amp: 95 });
+    for (let i = 0; i < 7; i++) q.push({ t: 1.5 + i * 1.15, type: "diver", x: 0.1 + 0.8 * ((i * 67) % 100) / 100 });
   }
   q.sort((a, b) => a.t - b.t);
   space.queue = q;
@@ -616,7 +686,7 @@ function spaceHitPlayer() {
       gameOver("space", "Il tuo caccia è stato abbattuto tra le stelle.");
       return;
     }
-    p.shield = 3;
+    p.shield = space.shipType === "falcon" ? 4 : 3;
     p.inv = 2.5;
     p.x = W / 2; p.y = H * 0.85;
   } else {
@@ -639,8 +709,15 @@ function updateSpace(dt) {
   } else if (sp.state === "clear") {
     sp.stateT -= dt;
     if (sp.stateT <= 0) {
-      G.screen = "approach";
-      approach = { t: 0 };
+      pressedCodes.clear();
+      touchTapped = false;
+      if (sp.shipType === "xwing") {
+        falconIntro = { t: 0 };
+        G.screen = "falconIntro";
+      } else {
+        duelIntro = { t: 0, b1: false, b2: false, b3: false };
+        G.screen = "duelIntro";
+      }
       return;
     }
   }
@@ -658,10 +735,18 @@ function updateSpace(dt) {
   // fuoco giocatore (bolt rossi come i caccia ribelli)
   sp.fireCd -= dt;
   if (fireHeld() && sp.fireCd <= 0 && sp.state === "run") {
-    const tips = [[-25, -2], [25, -2], [-23, -14], [23, -14]];
-    const tp = tips[sp.tip % 4]; sp.tip++;
-    sp.lasers.push({ x: p.x + tp[0], y: p.y + tp[1], vy: -640 });
-    sp.fireCd = 0.15;
+    if (sp.shipType === "falcon") {
+      // torretta quadrilaser: rosata a tre colpi
+      for (const spr of [-0.16, 0, 0.16]) {
+        sp.lasers.push({ x: p.x + spr * 60, y: p.y - 26, vy: -600, vx: spr * 220 });
+      }
+      sp.fireCd = 0.2;
+    } else {
+      const tips = [[-25, -2], [25, -2], [-23, -14], [23, -14]];
+      const tp = tips[sp.tip % 4]; sp.tip++;
+      sp.lasers.push({ x: p.x + tp[0], y: p.y + tp[1], vy: -640 });
+      sp.fireCd = 0.15;
+    }
     AudioFX.laser();
   }
 
@@ -713,7 +798,7 @@ function updateSpace(dt) {
     if (e.y > H + 60 || e.x < -80 || e.x > W + 80) { sp.enemies.splice(i, 1); continue; }
 
     // collisione con il giocatore
-    if (p.inv <= 0 && dist2(e.x, e.y, p.x, p.y) < 30 * 30) {
+    if (p.inv <= 0 && dist2(e.x, e.y, p.x, p.y) < (sp.hitR + 13) * (sp.hitR + 13)) {
       sp.enemies.splice(i, 1);
       spawnBurst(sp.parts, e.x, e.y, 22, EXPL_COLS, 240, 0.8);
       spaceHitPlayer();
@@ -725,7 +810,8 @@ function updateSpace(dt) {
   for (let i = sp.lasers.length - 1; i >= 0; i--) {
     const l = sp.lasers[i];
     l.y += l.vy * dt;
-    if (l.y < -40) { sp.lasers.splice(i, 1); continue; }
+    l.x += (l.vx || 0) * dt;
+    if (l.y < -40 || l.x < -40 || l.x > W + 40) { sp.lasers.splice(i, 1); continue; }
     for (let j = sp.enemies.length - 1; j >= 0; j--) {
       const e = sp.enemies[j];
       if (dist2(l.x, l.y, e.x, e.y) < 22 * 22) {
@@ -745,7 +831,7 @@ function updateSpace(dt) {
     const b = sp.ebolts[i];
     b.x += b.vx * dt; b.y += b.vy * dt;
     if (b.y > H + 40 || b.x < -40 || b.x > W + 40) { sp.ebolts.splice(i, 1); continue; }
-    if (p.inv <= 0 && dist2(b.x, b.y, p.x, p.y) < 17 * 17) {
+    if (p.inv <= 0 && dist2(b.x, b.y, p.x, p.y) < sp.hitR * sp.hitR) {
       sp.ebolts.splice(i, 1);
       spaceHitPlayer();
     }
@@ -755,14 +841,16 @@ function updateSpace(dt) {
 
   // ondata completata
   if (sp.state === "run" && sp.queue.length === 0 && sp.enemies.length === 0) {
-    if (sp.wave < 3) {
+    if (sp.wave < 2) {
       sp.wave++;
       buildWave(sp.wave);
       sp.state = "intro"; sp.stateT = 1.6;
     } else {
-      sp.state = "clear"; sp.stateT = 2.4;
-      showMsg("Via libera! Rotta verso la Morte Nera…", 2.4);
+      sp.state = "clear"; sp.stateT = 2.6;
       G.score += 500;
+      showMsg(sp.shipType === "xwing"
+        ? "Ondate respinte! Il Millennium Falcon è in arrivo…"
+        : "Spazio libero! Ma i sensori rilevano una presenza oscura…", 2.6);
     }
   }
 }
@@ -774,7 +862,8 @@ function drawSpace() {
   drawStars(sp.scroll, 1);
 
   // La Morte Nera cresce all'orizzonte man mano che avanzi
-  const dsR = MINWH * (0.09 + sp.wave * 0.045);
+  const phaseIdx = (sp.shipType === "falcon" ? 2 : 0) + sp.wave;
+  const dsR = MINWH * (0.06 + phaseIdx * 0.032);
   drawDeathStar(W * 0.8, H * 0.16, dsR, 0.85, 0);
 
   // bolt nemici (verdi)
@@ -788,11 +877,611 @@ function drawSpace() {
   for (const e of sp.enemies) drawTIE(e.x, e.y);
 
   const flick = p.inv > 0 && Math.sin(G.time * 26) > 0;
-  if (!flick) drawPlayerTop(p.x, p.y, p.vx || 0, false);
+  if (!flick) {
+    if (sp.shipType === "falcon") drawFalconTop(p.x, p.y, p.vx || 0);
+    else drawPlayerTop(p.x, p.y, p.vx || 0, false);
+  }
 
   drawParts(sp.parts);
   drawHUD();
-  text("ONDATA " + sp.wave + "/3", W / 2, 26, 15, "#8fa2c5");
+  text((sp.shipType === "falcon" ? "MILLENNIUM FALCON" : "X-WING") + " · ONDATA " + sp.wave + "/2",
+       W / 2, 26, 15, "#8fa2c5");
+}
+
+// ============================================================
+// CUTSCENE — ARRIVA IL MILLENNIUM FALCON
+// ============================================================
+let falconIntro = null;
+
+function updateFalconIntro(dt) {
+  falconIntro.t += dt;
+  if (falconIntro.t > 3.2 || anyStartPressed()) {
+    initSpace("falcon", space ? space.player.lives : 3);
+    G.screen = "space";
+  }
+}
+
+function drawFalconIntro() {
+  ctx.fillStyle = "#04060c";
+  ctx.fillRect(0, 0, W, H);
+  drawStars(G.time * 0.004, 1);
+  const t = falconIntro.t;
+
+  // il Falcon plana in scena
+  const k = clamp(t / 2.2, 0, 1);
+  const ek = 1 - (1 - k) * (1 - k);
+  const fx = lerp(-W * 0.2, W * 0.5, ek);
+  const fy = H * 0.58 + Math.sin(t * 2.2) * 8;
+  ctx.save();
+  ctx.translate(fx, fy);
+  ctx.scale(2.2, 2.2);
+  drawFalconTop(0, 0, 120);
+  ctx.restore();
+
+  text("IL MILLENNIUM FALCON", W / 2, H * 0.24, Math.max(24, MINWH * 0.05), "#ffe81f", "center", true);
+  text("SI UNISCE ALLA BATTAGLIA!", W / 2, H * 0.32, Math.max(18, MINWH * 0.036), "#ffe81f", "center", true);
+  if (t > 1)
+    text("Han ti lascia i comandi: quadrilaser a rosata e scudi potenziati!", W / 2, H * 0.4, Math.max(13, MINWH * 0.022), "#c5cde0");
+  text("INVIO per continuare", W / 2, H - 20, 11, "#4d5670");
+}
+
+// ============================================================
+// CUTSCENE — UNA PRESENZA OSCURA
+// ============================================================
+let duelIntro = null;
+
+function updateDuelIntro(dt) {
+  const d = duelIntro;
+  d.t += dt;
+  if (!d.b1 && d.t > 0.4) { d.b1 = true; AudioFX.breath(); }
+  if (!d.b2 && d.t > 1.5) { d.b2 = true; AudioFX.breath(); }
+  if (!d.b3 && d.t > 2.6) { d.b3 = true; AudioFX.breath(); }
+  if (d.t > 3.8 || anyStartPressed()) {
+    initDuel();
+    G.screen = "duel";
+  }
+}
+
+function drawDuelIntro() {
+  const t = duelIntro.t;
+  drawCorridor();
+  const S = MINWH / 420, GY = H * 0.74;
+
+  // Vader avanza dall'ombra
+  const k = clamp(t / 2.4, 0, 1);
+  const ek = 1 - (1 - k) * (1 - k);
+  const vx = lerp(W * 1.12, W * 0.7, ek);
+  drawVaderChar({ x: vx, face: -1, armAng: -0.55, walkT: t * 6, hurtT: 0, staggerT: 0, kneel: 0, alpha: 1 }, S, GY);
+
+  text("Atterri nella Morte Nera per sabotare il raggio traente…", W / 2, H * 0.2, Math.max(13, MINWH * 0.024), "#c5cde0");
+  if (t > 1.6)
+    text("DARTH VADER TI SBARRA LA STRADA", W / 2, H * 0.29, Math.max(20, MINWH * 0.04), "#ff5c5c", "center", true);
+  text("INVIO per continuare", W / 2, H - 20, 11, "#4d5670");
+}
+
+// ============================================================
+// IL DUELLO — LUKE SKYWALKER contro DARTH VADER
+// ============================================================
+let duel = null;
+
+const VADER_QUOTES = [
+  "« Ora il cerchio è completo. »",
+  "« La Forza è potente in te. »",
+  "« Non conosci il potere del lato oscuro. »",
+  "« Impressionante… davvero impressionante. »",
+];
+
+function initDuel() {
+  duel = {
+    luke: {
+      x: W * 0.28, hp: 5, state: "idle", t: 0, atkCd: 0,
+      blocking: false, blockT: 9, face: 1, hurtT: 0, armAng: -0.5,
+      walkT: 0, moving: 0, didHit: false, pushVx: 0,
+    },
+    vader: {
+      x: W * 0.72, hp: 8, state: "idle", t: 0, cd: 1.4,
+      forceCd: 7, face: -1, hurtT: 0, armAng: -0.65,
+      walkT: 0, staggerT: 0, quote: null, quoteT: 0, quoteCd: 4,
+      combo: false, kneel: 0, alpha: 1, blockT: 0, pushVx: 0,
+    },
+    sparks: [], rings: [],
+    introT: 1.3, overT: 0,
+  };
+  G.duelStartScore = G.score;
+  AudioFX.humStart(); // ronzio delle lame
+}
+
+function duelSpark(x, y, cols) {
+  spawnBurst(duel.sparks, x, y, 16, cols, 260, 0.5);
+}
+
+function updateDuel(dt) {
+  const d = duel, l = d.luke, v = d.vader;
+  const S = MINWH / 420, GY = H * 0.74;
+  const reach = S * 140;
+
+  updateParts(d.sparks, dt);
+  for (let i = d.rings.length - 1; i >= 0; i--) {
+    d.rings[i].r += dt * MINWH * 0.9;
+    d.rings[i].a -= dt * 2.2;
+    if (d.rings[i].a <= 0) d.rings.splice(i, 1);
+  }
+
+  if (d.introT > 0) { d.introT -= dt; return; }
+
+  // vittoria: Vader si ritira
+  if (d.overT > 0) {
+    d.overT += dt;
+    v.kneel = clamp(v.kneel + dt * 1.2, 0, 1);
+    if (d.overT > 1.2) v.alpha = clamp(v.alpha - dt * 0.9, 0, 1);
+    if (d.overT > 2.6) {
+      AudioFX.humStop();
+      pressedCodes.clear();
+      touchTapped = false;
+      G.screen = "approach";
+      approach = { t: 0 };
+    }
+    return;
+  }
+
+  l.face = v.x > l.x ? 1 : -1;
+  v.face = l.x > v.x ? 1 : -1;
+  const atkPressed = popKey("Space"); // cattura anche i tocchi rapidissimi
+  l.hurtT = Math.max(0, l.hurtT - dt);
+  v.hurtT = Math.max(0, v.hurtT - dt);
+  l.atkCd = Math.max(0, l.atkCd - dt);
+  l.moving = Math.max(0, l.moving - dt);
+
+  // ---- LUKE (giocatore) ----
+  const mv = 300 * dt;
+  if (l.state !== "atk") {
+    if (keys["ArrowLeft"] || keys["KeyA"]) { l.x -= mv; l.moving = 0.1; }
+    if (keys["ArrowRight"] || keys["KeyD"]) { l.x += mv; l.moving = 0.1; }
+  }
+  l.x += l.pushVx * dt;
+  l.pushVx *= Math.pow(0.001, dt);
+  l.x = clamp(l.x, W * 0.06, W * 0.94);
+  l.walkT += dt * (l.moving > 0 ? 1 : 0);
+
+  const wasBlocking = l.blocking;
+  l.blocking = l.state !== "atk" && blockHeld();
+  l.blockT = l.blocking ? (wasBlocking ? l.blockT + dt : 0) : 9;
+
+  if (l.state === "atk") {
+    l.t += dt;
+    const k = clamp(l.t / 0.34, 0, 1);
+    l.armAng = lerp(-2.2, 0.55, k * k * (3 - 2 * k));
+    if (!l.didHit && l.t > 0.13) {
+      l.didHit = true;
+      if (Math.abs(v.x - l.x) < reach && v.alpha > 0.5) {
+        if (v.staggerT <= 0 && (v.state === "idle" || v.state === "approach") && Math.random() < 0.42) {
+          v.state = "block"; v.t = 0;
+          AudioFX.clash();
+          duelSpark((l.x + v.x) / 2, GY - S * 80, ["#ffe9c9", "#7fd4ff", "#ffffff"]);
+          l.pushVx = -l.face * 240;
+          G.shake = 6;
+        } else {
+          v.hp--;
+          v.hurtT = 0.3;
+          G.score += 250;
+          AudioFX.thud();
+          duelSpark(v.x - v.face * S * 20, GY - S * 75, ["#ff9d4d", "#ff5c33", "#ffe9c9"]);
+          v.x += l.face * S * 26;
+          G.shake = 7;
+          if (v.hp <= 0) {
+            d.overT = 0.01;
+            G.score += 2000;
+            showMsg("Fener vacilla e si ritira: la via è libera!", 2.6);
+            return;
+          }
+        }
+      }
+    }
+    if (l.t >= 0.34) { l.state = "idle"; l.armAng = -0.5; }
+  } else if (l.blocking) {
+    l.armAng = lerp(l.armAng, -1.35, Math.min(1, dt * 14));
+  } else {
+    l.armAng = lerp(l.armAng, -0.5 + Math.sin(G.time * 2) * 0.06, Math.min(1, dt * 8));
+    if ((fireHeld() || atkPressed) && l.atkCd <= 0) {
+      l.state = "atk"; l.t = 0; l.didHit = false; l.atkCd = 0.55;
+      AudioFX.swing();
+    }
+  }
+
+  // ---- VADER (IA) ----
+  v.walkT += dt;
+  v.x += v.pushVx * dt;
+  v.pushVx *= Math.pow(0.001, dt);
+  v.x = clamp(v.x, W * 0.06, W * 0.94);
+  v.forceCd -= dt;
+  v.quoteT = Math.max(0, v.quoteT - dt);
+  v.quoteCd -= dt;
+  if (v.quoteCd <= 0 && v.state === "idle" && v.quoteT <= 0) {
+    v.quote = VADER_QUOTES[Math.floor(Math.random() * VADER_QUOTES.length)];
+    v.quoteT = 2.2;
+    v.quoteCd = rand(5, 8);
+    AudioFX.breath();
+  }
+
+  if (v.staggerT > 0) {
+    v.staggerT -= dt;
+    v.armAng = lerp(v.armAng, 0.9, Math.min(1, dt * 6));
+    return;
+  }
+
+  const dist = Math.abs(l.x - v.x);
+  switch (v.state) {
+    case "idle":
+    case "approach": {
+      v.cd -= dt;
+      const want = S * 125;
+      if (dist > want) { v.x += (l.x > v.x ? 1 : -1) * 135 * dt; v.state = "approach"; }
+      else v.state = "idle";
+      v.armAng = lerp(v.armAng, -0.65 + Math.sin(G.time * 1.6) * 0.05, Math.min(1, dt * 6));
+      if (v.forceCd <= 0 && dist < S * 330 && Math.random() < 0.5) {
+        v.state = "forceTele"; v.t = 0;
+        v.forceCd = rand(7, 10);
+      } else if (v.cd <= 0 && dist < S * 165) {
+        v.state = "windup"; v.t = 0;
+        v.windupDur = v.combo ? 0.26 : 0.5;
+        v.combo = false;
+      }
+      break;
+    }
+    case "windup": {
+      v.t += dt;
+      v.armAng = lerp(v.armAng, -2.35, Math.min(1, dt * 10));
+      if (v.t > v.windupDur * 0.6) v.armAng += Math.sin(G.time * 45) * 0.03;
+      if (v.t >= v.windupDur) { v.state = "strike"; v.t = 0; v.didHit = false; AudioFX.swing(); }
+      break;
+    }
+    case "strike": {
+      v.t += dt;
+      const k = clamp(v.t / 0.3, 0, 1);
+      v.armAng = lerp(-2.35, 0.6, k * k * (3 - 2 * k));
+      if (!v.didHit && v.t > 0.1) {
+        v.didHit = true;
+        if (Math.abs(l.x - v.x) < reach) {
+          if (l.blocking) {
+            if (l.blockT < 0.2) {
+              // parata perfetta: Vader barcolla
+              v.staggerT = 1.15;
+              AudioFX.clash();
+              showMsg("PARATA PERFETTA!", 1);
+              duelSpark((l.x + v.x) / 2, GY - S * 82, ["#7fd4ff", "#ffffff", "#bfe6a8"]);
+              G.shake = 8;
+            } else {
+              AudioFX.clash();
+              duelSpark((l.x + v.x) / 2, GY - S * 80, ["#ffe9c9", "#ffffff"]);
+              l.pushVx = (l.x > v.x ? 1 : -1) * 260;
+              G.shake = 6;
+            }
+          } else {
+            l.hp--;
+            l.hurtT = 0.35;
+            AudioFX.thud();
+            duelSpark(l.x, GY - S * 70, ["#ff5c33", "#ffe9c9"]);
+            l.pushVx = (l.x > v.x ? 1 : -1) * 300;
+            G.shake = 10;
+            if (l.hp <= 0) {
+              gameOver("duel", "Il lato oscuro ha prevalso… questa volta.");
+              return;
+            }
+          }
+        }
+      }
+      if (v.t >= 0.3) {
+        v.state = "recover"; v.t = 0;
+        if (v.hp <= 4 && Math.random() < 0.45) v.combo = true;
+      }
+      break;
+    }
+    case "recover": {
+      v.t += dt;
+      v.armAng = lerp(v.armAng, -0.65, Math.min(1, dt * 5));
+      if (v.t >= (v.combo ? 0.15 : 0.5)) {
+        v.state = v.combo ? "windup" : "idle";
+        if (v.combo) { v.t = 0; v.windupDur = 0.26; v.combo = false; }
+        v.cd = rand(0.5, 1.3);
+      }
+      break;
+    }
+    case "forceTele": {
+      v.t += dt;
+      v.armAng = lerp(v.armAng, -1.7, Math.min(1, dt * 8));
+      if (v.t > 0.6) {
+        v.state = "recover"; v.t = 0;
+        AudioFX.forceP();
+        d.rings.push({ x: v.x + (l.x > v.x ? 1 : -1) * S * 20, y: GY - S * 78, r: S * 20, a: 0.8 });
+        if (Math.abs(l.x - v.x) < S * 340) {
+          l.pushVx = (l.x > v.x ? 1 : -1) * 780;
+          G.shake = 9;
+        }
+      }
+      break;
+    }
+    case "block": {
+      v.t += dt;
+      v.armAng = lerp(v.armAng, -1.4, Math.min(1, dt * 14));
+      if (v.t > 0.45) v.state = "idle";
+      break;
+    }
+  }
+}
+
+// ---------------------------------------------------------- disegno duello
+function drawCorridor() {
+  ctx.fillStyle = "#0a0b10";
+  ctx.fillRect(0, 0, W, H);
+  const GY = H * 0.74;
+
+  // striscia d'allarme
+  ctx.fillStyle = "rgba(255,45,45," + (0.22 + 0.18 * Math.sin(G.time * 4)).toFixed(2) + ")";
+  ctx.fillRect(0, 0, W, H * 0.014);
+
+  // pannellature della parete
+  ctx.strokeStyle = "rgba(90,110,150,0.12)";
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 8; i++) {
+    const px = (W / 8) * i;
+    ctx.beginPath(); ctx.moveTo(px, H * 0.06); ctx.lineTo(px, GY); ctx.stroke();
+  }
+  ctx.beginPath(); ctx.moveTo(0, H * 0.3); ctx.lineTo(W, H * 0.3); ctx.stroke();
+
+  // colonne di luce
+  for (let i = 0; i < 6; i++) {
+    const cx = W * (0.09 + i * 0.165);
+    const fl = 0.1 + 0.05 * Math.sin(G.time * 3 + i * 2);
+    const g = ctx.createLinearGradient(0, H * 0.08, 0, GY);
+    g.addColorStop(0, "rgba(170,200,255," + (fl * 0.6).toFixed(2) + ")");
+    g.addColorStop(0.5, "rgba(170,200,255," + fl.toFixed(2) + ")");
+    g.addColorStop(1, "rgba(170,200,255," + (fl * 0.4).toFixed(2) + ")");
+    ctx.fillStyle = g;
+    ctx.fillRect(cx - 4, H * 0.08, 8, GY - H * 0.08);
+  }
+
+  // pavimento
+  ctx.fillStyle = "#07080c";
+  ctx.fillRect(0, GY, W, H - GY);
+  ctx.strokeStyle = "rgba(120,150,200,0.3)";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(0, GY); ctx.lineTo(W, GY); ctx.stroke();
+}
+
+function drawSaberBlade(hx, hy, ang, len, rgb, S) {
+  const tx = hx + Math.cos(ang) * len, ty = hy + Math.sin(ang) * len;
+  ctx.lineCap = "round";
+  for (const [w, a] of [[13, 0.1], [7, 0.25], [3.6, 0.8]]) {
+    ctx.strokeStyle = "rgba(" + rgb + "," + a + ")";
+    ctx.lineWidth = S * w;
+    ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(tx, ty); ctx.stroke();
+  }
+  ctx.strokeStyle = "rgba(255,255,255,0.95)";
+  ctx.lineWidth = S * 1.7;
+  ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(tx, ty); ctx.stroke();
+  // riflesso a terra
+  return { tx, ty };
+}
+
+function drawSaberGroundGlow(x, GY, rgb) {
+  const g = ctx.createRadialGradient(x, GY + 6, 0, x, GY + 6, MINWH * 0.09);
+  g.addColorStop(0, "rgba(" + rgb + ",0.18)");
+  g.addColorStop(1, "rgba(" + rgb + ",0)");
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.ellipse(x, GY + 6, MINWH * 0.09, MINWH * 0.018, 0, 0, TAU); ctx.fill();
+}
+
+function drawLukeChar(l, S, GY) {
+  ctx.save();
+  ctx.translate(l.x, GY);
+  ctx.scale(l.face, 1);
+  if (l.hurtT > 0 && Math.sin(G.time * 40) > 0) ctx.globalAlpha = 0.55;
+  const walk = l.moving > 0 ? Math.sin(l.walkT * 11) : 0;
+
+  ctx.lineCap = "round";
+  // gambe
+  ctx.strokeStyle = "#b7ac91";
+  ctx.lineWidth = S * 7;
+  ctx.beginPath();
+  ctx.moveTo(0, -S * 46); ctx.lineTo(S * (7 + walk * 6), 0);
+  ctx.moveTo(0, -S * 46); ctx.lineTo(S * (-7 - walk * 6), 0);
+  ctx.stroke();
+  // stivali
+  ctx.strokeStyle = "#4a3f33";
+  ctx.lineWidth = S * 7.5;
+  ctx.beginPath();
+  ctx.moveTo(S * (7 + walk * 6) * 0.85, -S * 8); ctx.lineTo(S * (7 + walk * 6), 0);
+  ctx.moveTo(S * (-7 - walk * 6) * 0.85, -S * 8); ctx.lineTo(S * (-7 - walk * 6), 0);
+  ctx.stroke();
+
+  // tunica
+  ctx.fillStyle = "#d8d2c0";
+  ctx.strokeStyle = "#a39c88";
+  ctx.lineWidth = S * 1.2;
+  poly([[-S * 13, -S * 44], [S * 13, -S * 44], [S * 10, -S * 86], [-S * 10, -S * 86]]);
+  ctx.fill(); ctx.stroke();
+  ctx.fillStyle = "#5a4632";
+  ctx.fillRect(-S * 12, -S * 54, S * 24, S * 6);
+
+  // testa
+  ctx.fillStyle = "#e8c39e";
+  ctx.beginPath(); ctx.arc(S * 2, -S * 97, S * 11, 0, TAU); ctx.fill();
+  ctx.fillStyle = "#d9b26a";
+  ctx.beginPath(); ctx.arc(S * 1.5, -S * 100, S * 11.5, Math.PI * 0.95, Math.PI * 2.05); ctx.fill();
+
+  // braccio e spada (verde)
+  const shx = S * 8, shy = -S * 80;
+  const hx = shx + Math.cos(l.armAng) * S * 26;
+  const hy = shy + Math.sin(l.armAng) * S * 26;
+  ctx.strokeStyle = "#d8d2c0";
+  ctx.lineWidth = S * 6;
+  ctx.beginPath(); ctx.moveTo(shx, shy); ctx.lineTo(hx, hy); ctx.stroke();
+  ctx.strokeStyle = "#9aa0ad";
+  ctx.lineWidth = S * 4;
+  ctx.beginPath();
+  ctx.moveTo(hx - Math.cos(l.armAng) * S * 9, hy - Math.sin(l.armAng) * S * 9);
+  ctx.lineTo(hx, hy);
+  ctx.stroke();
+  drawSaberBlade(hx, hy, l.armAng, S * 88, "80,255,110", S);
+
+  ctx.restore();
+  drawSaberGroundGlow(l.x + l.face * Math.cos(l.armAng) * S * 60, GY, "80,255,110");
+}
+
+function drawVaderChar(v, S, GY) {
+  ctx.save();
+  ctx.translate(v.x, GY);
+  ctx.globalAlpha = v.alpha !== undefined ? v.alpha : 1;
+  ctx.scale(v.face, 1);
+  if (v.hurtT > 0 && Math.sin(G.time * 40) > 0) ctx.globalAlpha *= 0.6;
+  const kneel = v.kneel || 0;
+  ctx.translate(0, kneel * S * 22);
+  ctx.rotate(kneel * 0.18);
+  const VS = S * 1.16; // Vader è più imponente
+  const walk = v.state === "approach" ? Math.sin(v.walkT * 9) : 0;
+
+  ctx.lineCap = "round";
+  // mantello
+  const sway = Math.sin(G.time * 2.1) * S * 4;
+  ctx.fillStyle = "#0a0a10";
+  poly([
+    [-VS * 6, -VS * 88],
+    [-VS * 26 - sway, -VS * 6],
+    [VS * 2, -VS * 20],
+    [VS * 8, -VS * 84],
+  ]);
+  ctx.fill();
+
+  // gambe
+  ctx.strokeStyle = "#131318";
+  ctx.lineWidth = VS * 8;
+  ctx.beginPath();
+  ctx.moveTo(0, -VS * 46); ctx.lineTo(VS * (8 + walk * 5), 0);
+  ctx.moveTo(0, -VS * 46); ctx.lineTo(VS * (-8 - walk * 5), 0);
+  ctx.stroke();
+
+  // torso corazzato
+  ctx.fillStyle = "#15151c";
+  ctx.strokeStyle = "#2c2c38";
+  ctx.lineWidth = VS * 1.4;
+  poly([[-VS * 15, -VS * 44], [VS * 15, -VS * 44], [VS * 12, -VS * 90], [-VS * 12, -VS * 90]]);
+  ctx.fill(); ctx.stroke();
+  // pannello pettorale
+  ctx.fillStyle = "#23232d";
+  ctx.fillRect(-VS * 7, -VS * 80, VS * 14, VS * 10);
+  ctx.fillStyle = "#ff4b4b"; ctx.fillRect(-VS * 5, -VS * 77, VS * 2.4, VS * 2.4);
+  ctx.fillStyle = "#59ff8a"; ctx.fillRect(-VS * 1, -VS * 77, VS * 2.4, VS * 2.4);
+  ctx.fillStyle = "#7fd4ff"; ctx.fillRect(VS * 3, -VS * 77, VS * 2.4, VS * 2.4);
+  // cintura
+  ctx.fillStyle = "#0c0c12";
+  ctx.fillRect(-VS * 14, -VS * 52, VS * 28, VS * 6);
+  ctx.fillStyle = "#3a3a48";
+  ctx.fillRect(-VS * 4, -VS * 52.5, VS * 8, VS * 7);
+
+  // elmo
+  ctx.fillStyle = "#101018";
+  ctx.strokeStyle = "#33333f";
+  ctx.lineWidth = VS * 1.2;
+  ctx.beginPath(); ctx.arc(VS * 2, -VS * 103, VS * 13, Math.PI, 0); ctx.fill(); ctx.stroke();
+  poly([[VS * -12, -VS * 103], [VS * 16, -VS * 103], [VS * 20, -VS * 92], [VS * -16, -VS * 92]]);
+  ctx.fill(); ctx.stroke();
+  // maschera
+  ctx.fillStyle = "#1a1a24";
+  poly([[VS * -4, -VS * 101], [VS * 9, -VS * 101], [VS * 7, -VS * 92], [VS * -2, -VS * 92]]);
+  ctx.fill();
+  // lenti
+  ctx.fillStyle = "#3d1216";
+  ctx.beginPath();
+  ctx.ellipse(VS * 0, -VS * 99, VS * 2.6, VS * 2, 0, 0, TAU);
+  ctx.ellipse(VS * 6.5, -VS * 99, VS * 2.6, VS * 2, 0, 0, TAU);
+  ctx.fill();
+  // griglia
+  ctx.strokeStyle = "#2c2c38";
+  ctx.lineWidth = VS * 0.9;
+  ctx.beginPath();
+  ctx.moveTo(VS * 0, -VS * 95); ctx.lineTo(VS * 6, -VS * 95);
+  ctx.moveTo(VS * 0.5, -VS * 93.2); ctx.lineTo(VS * 5.5, -VS * 93.2);
+  ctx.stroke();
+
+  // braccio e spada (rossa)
+  const shx = VS * 10, shy = -VS * 82;
+  const hx = shx + Math.cos(v.armAng) * VS * 28;
+  const hy = shy + Math.sin(v.armAng) * VS * 28;
+  ctx.strokeStyle = "#15151c";
+  ctx.lineWidth = VS * 6.5;
+  ctx.beginPath(); ctx.moveTo(shx, shy); ctx.lineTo(hx, hy); ctx.stroke();
+  ctx.strokeStyle = "#9aa0ad";
+  ctx.lineWidth = VS * 4;
+  ctx.beginPath();
+  ctx.moveTo(hx - Math.cos(v.armAng) * VS * 9, hy - Math.sin(v.armAng) * VS * 9);
+  ctx.lineTo(hx, hy);
+  ctx.stroke();
+  const bladeLen = VS * 92 * (1 - (v.kneel || 0) * 0.9);
+  if (bladeLen > VS * 8) drawSaberBlade(hx, hy, v.armAng, bladeLen, "255,60,50", VS);
+
+  ctx.restore();
+  if ((v.alpha === undefined || v.alpha > 0.3) && !(v.kneel > 0.5))
+    drawSaberGroundGlow(v.x + v.face * Math.cos(v.armAng) * S * 62, GY, "255,60,50");
+}
+
+function drawDuel() {
+  const d = duel, l = d.luke, v = d.vader;
+  const S = MINWH / 420, GY = H * 0.74;
+
+  drawCorridor();
+
+  // anelli della spinta di Forza
+  for (const r of d.rings) {
+    ctx.strokeStyle = "rgba(190,120,255," + r.a.toFixed(2) + ")";
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(r.x, r.y, r.r, 0, TAU); ctx.stroke();
+  }
+
+  drawVaderChar(v, S, GY);
+  drawLukeChar(l, S, GY);
+  drawParts(d.sparks);
+
+  // barre dei duellanti
+  text("LUKE SKYWALKER", 18, 24, 13, "#bfe6a8", "left", true);
+  for (let i = 0; i < 5; i++) {
+    ctx.fillStyle = i < l.hp ? "#59ff8a" : "rgba(120,130,160,0.25)";
+    ctx.fillRect(18 + i * 26, 34, 22, 9);
+  }
+  text("DARTH VADER", W - 18, 24, 13, "#ff8c85", "right", true);
+  for (let i = 0; i < 8; i++) {
+    ctx.fillStyle = i < v.hp ? "#ff5c5c" : "rgba(120,130,160,0.25)";
+    ctx.fillRect(W - 18 - (i + 1) * 22, 34, 18, 9);
+  }
+  text("PUNTI  " + fmtScore(G.score), W / 2, 24, 13, "#8fa2c5");
+
+  // battuta di Vader
+  if (v.quoteT > 0 && d.overT === 0) {
+    ctx.globalAlpha = clamp(v.quoteT / 0.4, 0, 1);
+    text(v.quote, v.x, GY - S * 150, Math.max(12, MINWH * 0.02), "#c5cde0");
+    ctx.globalAlpha = 1;
+  }
+
+  if (d.introT > 0) {
+    text("DUELLO!", W / 2, H * 0.34, Math.max(30, MINWH * 0.07), "#ffe81f", "center", true);
+    text("SPAZIO: attacca · GIÙ/S: para (al momento giusto!) · frecce: muoviti", W / 2, H * 0.44, Math.max(12, MINWH * 0.02), "#c5cde0");
+  }
+  if (d.overT > 0.4)
+    text("La via è libera: corri al tuo caccia!", W / 2, H * 0.3, Math.max(15, MINWH * 0.028), "#ffe81f", "center", true);
+
+  if (AudioFX.muted) text("AUDIO OFF (M)", W - 18, H - 12, 10, "#4d5670", "right");
+
+  // pulsanti touch
+  if (hasTouch) {
+    const fb = fireBtn(), tb = torpBtn();
+    ctx.globalAlpha = 0.35;
+    ctx.strokeStyle = "#ff8c85"; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(fb.x, fb.y, fb.r, 0, TAU); ctx.stroke();
+    text("ATTACCO", fb.x, fb.y, 12, "#ff8c85");
+    ctx.strokeStyle = "#7fd4ff";
+    ctx.beginPath(); ctx.arc(tb.x, tb.y, tb.r, 0, TAU); ctx.stroke();
+    text("PARATA", tb.x, tb.y, 12, "#7fd4ff");
+    ctx.globalAlpha = 1;
+  }
 }
 
 // ============================================================
@@ -1829,7 +2518,7 @@ function drawTitle() {
   const cy = H * 0.62;
   const fs = Math.max(12, MINWH * 0.019);
   text("FRECCE / WASD  muovi il caccia", W / 2, cy, fs, "#c5cde0");
-  text("SPAZIO  laser      X  siluro protonico", W / 2, cy + fs * 1.7, fs, "#c5cde0");
+  text("SPAZIO  laser / attacco      X  siluro      GIÙ/S  parata", W / 2, cy + fs * 1.7, fs, "#c5cde0");
   text("P  pausa      M  audio on/off", W / 2, cy + fs * 3.4, fs, "#c5cde0");
   if (hasTouch) text("Touch: trascina a sinistra per muoverti, pulsanti a destra", W / 2, cy + fs * 5.1, fs, "#8fa2c5");
 
@@ -1860,6 +2549,11 @@ const CRAWL_LINES = [
   ["caccia imperiali, vola nella", false],
   ["trincea e centra il condotto", false],
   ["con un siluro protonico.", false],
+  ["", false],
+  ["Non sarai solo: il MILLENNIUM", false],
+  ["FALCON combatte al tuo fianco.", false],
+  ["Ma attento: DARTH VADER in", false],
+  ["persona ti sta cercando…", false],
   ["", false],
   ["Che la Forza sia con te…", true],
 ];
@@ -1943,12 +2637,13 @@ function drawHUD() {
 
   text("PUNTI  " + fmtScore(G.score), 18, 24, 15, "#ffffff", "left", true);
 
-  // scudi
+  // scudi (il Falcon ne ha 4)
+  const maxSh = G.screen === "space" && space && space.shipType === "falcon" ? 4 : 3;
   ctx.textAlign = "right";
-  text("SCUDI", W - 118, 22, 12, "#8fa2c5", "right");
-  for (let i = 0; i < 3; i++) {
+  text("SCUDI", W - 118 - (maxSh - 3) * 22, 22, 12, "#8fa2c5", "right");
+  for (let i = 0; i < maxSh; i++) {
     ctx.fillStyle = i < shield ? "#5ad0ff" : "rgba(120,130,160,0.25)";
-    ctx.fillRect(W - 108 + i * 22, 14, 16, 8);
+    ctx.fillRect(W - 108 - (maxSh - 3) * 22 + i * 22, 14, 16, 8);
   }
   // vite
   text("VITE", W - 118, 44, 12, "#8fa2c5", "right");
@@ -2114,7 +2809,7 @@ function update(dt) {
   }
 
   // pausa
-  if ((G.screen === "space" || G.screen === "trench") && popKey("KeyP")) G.paused = !G.paused;
+  if ((G.screen === "space" || G.screen === "trench" || G.screen === "duel") && popKey("KeyP")) G.paused = !G.paused;
   if (G.paused) {
     if (popKey("Enter") || touchTapped) { G.paused = false; touchTapped = false; }
     return;
@@ -2135,6 +2830,9 @@ function update(dt) {
       break;
     case "crawl":  updateCrawl(dt); break;
     case "space":  updateSpace(dt); break;
+    case "falconIntro": updateFalconIntro(dt); break;
+    case "duelIntro": updateDuelIntro(dt); break;
+    case "duel":   updateDuel(dt); break;
     case "approach": updateApproach(dt); break;
     case "trench": updateTrench(dt); break;
     case "vseq":   updateVseq(dt); break;
@@ -2144,7 +2842,8 @@ function update(dt) {
       break;
     case "gameover":
       if (anyStartPressed()) {
-        if (G.diedIn === "space") { G.score = G.spaceStartScore; initSpace(); G.screen = "space"; }
+        if (G.diedIn === "space") { G.score = G.spaceStartScore; initSpace(G.spacePhase); G.screen = "space"; }
+        else if (G.diedIn === "duel") { G.score = G.duelStartScore; initDuel(); G.screen = "duel"; }
         else { G.score = G.trenchStartScore; initTrench(); G.screen = "trench"; AudioFX.humStart(); }
       }
       break;
@@ -2159,6 +2858,9 @@ function draw() {
     case "title":    drawTitle(); break;
     case "crawl":    drawCrawl(); break;
     case "space":    drawSpace(); break;
+    case "falconIntro": drawFalconIntro(); break;
+    case "duelIntro": drawDuelIntro(); break;
+    case "duel":     drawDuel(); break;
     case "approach": drawApproach(); break;
     case "trench":   drawTrench(); break;
     case "vseq":     drawVseq(); break;
@@ -2195,6 +2897,9 @@ window.__game = {
   space: () => space,
   startTrench() { initTrench(); G.screen = "trench"; },
   startSpace() { initSpace(); G.screen = "space"; },
+  startFalcon() { initSpace("falcon"); G.screen = "space"; },
+  startDuel() { initDuel(); G.screen = "duel"; },
+  duel: () => duel,
   startApproach() { approach = { t: 0 }; G.screen = "approach"; },
   forceVictory() {
     G.score += 5000;
