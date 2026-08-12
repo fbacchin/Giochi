@@ -458,44 +458,162 @@ function drawFalconTop(x, y, vx) {
   ctx.rotate(b * 0.1);
 
   // scia dei motori
-  const fl = 10 + Math.random() * 8;
-  ctx.fillStyle = "rgba(120,190,255,0.75)";
-  ctx.fillRect(-16, 26, 32, fl * 0.35);
+  const fl = 8 + Math.random() * 6;
+  const eg = ctx.createLinearGradient(0, 26, 0, 32 + fl);
+  eg.addColorStop(0, "rgba(140,200,255,0.85)");
+  eg.addColorStop(1, "rgba(140,200,255,0)");
+  ctx.fillStyle = eg;
+  ctx.beginPath();
+  ctx.moveTo(-17, 25);
+  ctx.quadraticCurveTo(0, 31, 17, 25);
+  ctx.lineTo(13, 30 + fl);
+  ctx.quadraticCurveTo(0, 34 + fl, -13, 30 + fl);
+  ctx.closePath(); ctx.fill();
 
-  // scafo circolare
-  const g = ctx.createRadialGradient(-8, -8, 4, 0, 0, 32);
-  g.addColorStop(0, "#d9dde6");
-  g.addColorStop(0.7, "#b9bfcc");
-  g.addColorStop(1, "#8d94a5");
-  ctx.fillStyle = g;
-  ctx.beginPath(); ctx.ellipse(0, 0, 28, 26, 0, 0, TAU); ctx.fill();
-  ctx.strokeStyle = "#6a7186"; ctx.lineWidth = 1.5; ctx.stroke();
+  // gola scura tra le mandibole
+  ctx.fillStyle = "#141821";
+  ctx.fillRect(-8.5, -38, 17, 26);
 
-  // mandibole frontali
-  ctx.fillStyle = "#c4c9d6";
-  ctx.strokeStyle = "#6a7186"; ctx.lineWidth = 1;
-  poly([[-14, -18], [-5, -22], [-5, -40], [-14, -38]]); ctx.fill(); ctx.stroke();
-  poly([[14, -18], [5, -22], [5, -40], [14, -38]]); ctx.fill(); ctx.stroke();
+  // silhouette unica: disco + mandibole
+  const hull = () => {
+    ctx.beginPath();
+    ctx.moveTo(-21, -38);
+    ctx.lineTo(-24.5, -14);
+    ctx.bezierCurveTo(-28, -6, -28, 12, -19, 22);
+    ctx.bezierCurveTo(-10, 28.5, 10, 28.5, 19, 22);
+    ctx.bezierCurveTo(28, 12, 28, -6, 24.5, -14);
+    ctx.lineTo(21, -38);
+    ctx.lineTo(8.5, -38);
+    ctx.lineTo(7, -15);
+    ctx.quadraticCurveTo(0, -11, -7, -15);
+    ctx.lineTo(-8.5, -38);
+    ctx.closePath();
+  };
+  const g = ctx.createRadialGradient(0, -2, 6, 0, 4, 44);
+  g.addColorStop(0, "#ced2da");
+  g.addColorStop(0.6, "#b4bac6");
+  g.addColorStop(1, "#8a90a0");
+  hull(); ctx.fillStyle = g; ctx.fill();
+  // luce morbida da alto-sinistra, ritagliata dentro lo scafo
+  ctx.save();
+  hull(); ctx.clip();
+  const hl = ctx.createRadialGradient(-10, -10, 2, -10, -10, 34);
+  hl.addColorStop(0, "rgba(255,255,255,0.14)");
+  hl.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = hl;
+  ctx.fillRect(-30, -40, 60, 75);
+  ctx.restore();
+  hull(); ctx.strokeStyle = "#565d6e"; ctx.lineWidth = 1.2; ctx.stroke();
 
-  // cockpit laterale (a destra)
-  ctx.fillStyle = "#b9bfcc";
-  ctx.fillRect(20, -8, 12, 7);
-  ctx.beginPath(); ctx.arc(33, -4.5, 6, 0, TAU); ctx.fill(); ctx.stroke();
+  // piastre in fondo alla gola
+  ctx.strokeStyle = "#3d4453";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(-6.5, -17); ctx.lineTo(6.5, -17);
+  ctx.moveTo(-6, -20.5); ctx.lineTo(6, -20.5);
+  ctx.stroke();
+
+  // giunture e punte delle mandibole
+  ctx.strokeStyle = "rgba(70,78,94,0.55)";
+  ctx.beginPath();
+  ctx.moveTo(-14.5, -37); ctx.lineTo(-16, -14);
+  ctx.moveTo(14.5, -37); ctx.lineTo(16, -14);
+  ctx.stroke();
+  ctx.fillStyle = "rgba(70,78,94,0.35)";
+  ctx.fillRect(-21, -38, 12.5, 3);
+  ctx.fillRect(8.5, -38, 12.5, 3);
+
+  // bande circolari e pannellature radiali (solo sul settore visibile del disco)
+  ctx.strokeStyle = "rgba(70,78,94,0.4)";
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(0, 4, 22.5, -0.2 * Math.PI, 1.2 * Math.PI); ctx.stroke();
+  ctx.beginPath(); ctx.arc(0, 4, 12, -0.15 * Math.PI, 1.15 * Math.PI); ctx.stroke();
+  for (let i = 0; i < 9; i++) {
+    if (Math.abs(i - 4) <= 2) continue; // salta il settore coperto dalle mandibole
+    const a = -0.5 * Math.PI + (i - 4) * 0.32;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a) * 12, 4 + Math.sin(a) * 12);
+    ctx.lineTo(Math.cos(a) * 22.5, 4 + Math.sin(a) * 22.5);
+    ctx.stroke();
+  }
+
+  // usura e lastre sostituite: il fascino del "carretto spaziale"
+  const rust = [
+    [-15, 10, 5, 3, "rgba(122,103,76,0.35)"],
+    [8, 14, 6, 3.5, "rgba(110,97,82,0.3)"],
+    [16, -2, 4, 5, "rgba(122,103,76,0.28)"],
+    [-19, -2, 4, 4, "rgba(96,86,74,0.3)"],
+    [-4, 18, 7, 3, "rgba(110,97,82,0.28)"],
+  ];
+  for (const [px, py, pw, ph, col] of rust) { ctx.fillStyle = col; ctx.fillRect(px, py, pw, ph); }
+  ctx.fillStyle = "rgba(255,255,255,0.1)";
+  ctx.fillRect(-11, 6, 6, 4);
+  ctx.fillRect(4, -4, 5, 6);
+
+  // anelli di attracco laterali
+  ctx.fillStyle = "#9aa0ad";
+  ctx.strokeStyle = "#565d6e";
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.ellipse(-25.6, 4, 1.9, 4.6, 0, 0, TAU); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(25.6, 4, 1.9, 4.6, 0, 0, TAU); ctx.fill(); ctx.stroke();
+
+  // striscia dei motori lungo la poppa
+  ctx.lineCap = "round";
+  const pulse = 0.7 + 0.3 * Math.sin(G.time * 30);
+  ctx.strokeStyle = "rgba(150,210,255," + (0.8 * pulse).toFixed(2) + ")";
+  ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(0, 2, 25.5, 0.3 * Math.PI, 0.7 * Math.PI); ctx.stroke();
+  ctx.strokeStyle = "rgba(225,242,255,0.9)";
+  ctx.lineWidth = 1.1;
+  ctx.beginPath(); ctx.arc(0, 2, 25.5, 0.3 * Math.PI, 0.7 * Math.PI); ctx.stroke();
+
+  // riflesso sul fianco sinistro (senza invadere le mandibole)
+  ctx.strokeStyle = "rgba(255,255,255,0.22)";
+  ctx.lineWidth = 1.4;
+  ctx.beginPath(); ctx.arc(0, 4, 26.2, 0.82 * Math.PI, 1.16 * Math.PI); ctx.stroke();
+
+  // torretta quadrilaser centrale
+  ctx.fillStyle = "#7e8494";
+  ctx.beginPath(); ctx.arc(0, 3, 4.6, 0, TAU); ctx.fill();
+  ctx.strokeStyle = "#3d4453"; ctx.lineWidth = 1; ctx.stroke();
+  ctx.fillStyle = "#3d4453";
+  ctx.fillRect(-0.9, -3.6, 1.8, 4.2);
+  ctx.fillRect(-2.8, -2.8, 1.4, 3.2);
+
+  // parabola del sensore con crocera
+  ctx.fillStyle = "#c9cdd6";
+  ctx.strokeStyle = "#565d6e";
+  ctx.beginPath(); ctx.ellipse(-9.5, -6, 6, 5.4, -0.3, 0, TAU); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = "rgba(86,93,110,0.6)";
+  ctx.beginPath(); ctx.ellipse(-9.5, -6, 3.4, 3, -0.3, 0, TAU); ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-14.8, -8.6); ctx.lineTo(-4.2, -3.4);
+  ctx.moveTo(-11.5, -11); ctx.lineTo(-7.5, -1);
+  ctx.stroke();
+  ctx.fillStyle = "#3d4453";
+  ctx.beginPath(); ctx.arc(-9.5, -6, 1.1, 0, TAU); ctx.fill();
+
+  // cockpit cilindrico sul fianco destro
+  ctx.fillStyle = "#b4bac6";
+  ctx.strokeStyle = "#565d6e";
+  ctx.lineWidth = 1;
+  poly([[21, 8], [25.5, 8], [28, -8], [28, -14], [24, -14], [21, -4]]);
+  ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = "rgba(70,78,94,0.5)";
+  ctx.beginPath(); ctx.moveTo(23, 6); ctx.lineTo(25, -12); ctx.stroke();
+  // vetrata della cabina
   ctx.fillStyle = "#28303f";
-  ctx.beginPath(); ctx.arc(34, -4.5, 3.2, 0, TAU); ctx.fill();
-
-  // parabola e dettagli
-  ctx.fillStyle = "#8d94a5";
-  ctx.beginPath(); ctx.arc(-7, -6, 5, 0, TAU); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = "#6a7186";
-  ctx.beginPath(); ctx.arc(-7, -6, 1.6, 0, TAU); ctx.fill();
-  ctx.strokeStyle = "rgba(90,100,125,0.5)";
-  ctx.beginPath(); ctx.arc(0, 0, 18, 0.4, 2.4); ctx.stroke();
-  ctx.beginPath(); ctx.arc(0, 0, 12, 3.5, 5.3); ctx.stroke();
-
-  // torretta centrale
-  ctx.fillStyle = "#4a5570";
-  ctx.beginPath(); ctx.arc(0, 2, 4, 0, TAU); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(24, -14); ctx.lineTo(28, -14);
+  ctx.quadraticCurveTo(27.6, -19.5, 26, -20);
+  ctx.quadraticCurveTo(24.4, -19.5, 24, -14);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = "#9aa0ad"; ctx.lineWidth = 0.7;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(26, -20); ctx.lineTo(26, -14);
+  ctx.moveTo(24.5, -17.5); ctx.lineTo(27.5, -17.5);
+  ctx.stroke();
 
   ctx.restore();
 }
@@ -703,7 +821,7 @@ function updateSpace(dt) {
     sp.stateT -= dt;
     if (sp.stateT <= 0) {
       sp.state = "run";
-      showMsg("ONDATA " + sp.wave + " / 3", 1.5);
+      showMsg("ONDATA " + sp.wave + " / 2", 1.5);
       AudioFX.wave();
     }
   } else if (sp.state === "clear") {
@@ -2901,6 +3019,7 @@ window.__game = {
   startDuel() { initDuel(); G.screen = "duel"; },
   duel: () => duel,
   startApproach() { approach = { t: 0 }; G.screen = "approach"; },
+  drawFalcon: (x, y, vx) => drawFalconTop(x, y, vx),
   forceVictory() {
     G.score += 5000;
     vseq = { t: 0, boomed: false, rings: [], parts: [], flashes: [] };
