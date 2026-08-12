@@ -11,11 +11,15 @@ canvas e suoni sintetizzati con WebAudio. Funziona su desktop e su mobile (touch
 
 1. **Battaglia spaziale** — 3 ondate di caccia imperiali da abbattere mentre la
    Morte Nera si avvicina all'orizzonte.
-2. **La trincea** — corsa in pseudo‑3D: schiva le barriere, distruggi le torrette
-   e raggiungi il condotto di scarico.
+2. **La trincea** — corsa in pseudo‑3D: schiva le sporgenze attaccate alle pareti,
+   abbatti torrette e caccia TIE che ti arrivano incontro al centro del tunnel, e
+   raggiungi il condotto di scarico.
 3. **Il colpo finale** — allineati al condotto, aspetta l'aggancio del computer di
    puntamento e lancia un siluro protonico. Se lo manchi, nuovo passaggio… finché
    hai siluri.
+
+Lo spirito di Yoda ti accompagna: appare all'inizio della missione e
+all'ingresso nella trincea. «Che la Forza sia con te…»
 
 ## Controlli
 

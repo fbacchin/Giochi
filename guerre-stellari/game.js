@@ -128,6 +128,7 @@ const AudioFX = {
   torpedo()    { this.blip(180, 70, 0.6, "sine", 0.3); this.noise(0.45, 0.12, 900, 200); },
   lock()       { this.blip(880, 880, 0.07, "square", 0.12); },
   warn()       { this.blip(520, 300, 0.09, "square", 0.09); },
+  force()      { this.blip(392, 392, 0.6, "sine", 0.12); this.blip(587, 587, 0.85, "sine", 0.08); },
   wave()       { this.blip(440, 660, 0.18, "square", 0.14); },
   bigBoom() {
     this.noise(2.8, 0.8, 3200, 60);
@@ -437,9 +438,10 @@ function drawPlayerTop(x, y, vx, flick) {
   ctx.restore();
 }
 
-function drawTIE(x, y) {
+function drawTIE(x, y, scl) {
   ctx.save();
   ctx.translate(x, y);
+  if (scl && scl !== 1) ctx.scale(scl, scl);
   ctx.fillStyle = "#2c3347";
   ctx.strokeStyle = "#5a6785";
   ctx.lineWidth = 1.5;
@@ -559,14 +561,13 @@ function initSpace() {
   space = {
     player: { x: W / 2, y: H * 0.8, lives: 3, shield: 3, inv: 0 },
     lasers: [], ebolts: [], enemies: [], parts: [],
-    wave: 1, state: "intro", stateT: 1.6, t: 0,
+    wave: 1, state: "intro", stateT: 3.4, t: 0,
     queue: [], fireCd: 0, tip: 0,
     scroll: 0, kills: 0,
   };
   G.spaceStartScore = G.score;
   buildWave(1);
-  showMsg("ONDATA 1 / 3", 1.6);
-  AudioFX.wave();
+  showYoda(3.2);
 }
 
 function buildWave(n) {
@@ -630,7 +631,11 @@ function updateSpace(dt) {
 
   if (sp.state === "intro") {
     sp.stateT -= dt;
-    if (sp.stateT <= 0) sp.state = "run";
+    if (sp.stateT <= 0) {
+      sp.state = "run";
+      showMsg("ONDATA " + sp.wave + " / 3", 1.5);
+      AudioFX.wave();
+    }
   } else if (sp.state === "clear") {
     sp.stateT -= dt;
     if (sp.stateT <= 0) {
@@ -754,8 +759,6 @@ function updateSpace(dt) {
       sp.wave++;
       buildWave(sp.wave);
       sp.state = "intro"; sp.stateT = 1.6;
-      showMsg("ONDATA " + sp.wave + " / 3", 1.6);
-      AudioFX.wave();
     } else {
       sp.state = "clear"; sp.stateT = 2.4;
       showMsg("Via libera! Rotta verso la Morte Nera…", 2.4);
@@ -878,10 +881,11 @@ function initTrench() {
     dist: 0,
     portAt: 1150,
     firstPortAt: 1150,
-    nextSpawn: 26,
+    nextSpawn: 34,
     rng: mulberry32(99173),
-    obstacles: [], turrets: [], bolts: [], lasers: [], torps: [], parts3: [], parts: [],
+    obstacles: [], turrets: [], ties: [], bolts: [], lasers: [], torps: [], parts3: [], parts: [],
     skyBolts: [],
+    nextTieAt: 55,
     port: null,
     portWarned: false,
     torpedoes: 8,
@@ -893,7 +897,7 @@ function initTrench() {
     hintT: 3.6,
   };
   G.trenchStartScore = G.score;
-  showMsg("Vola nella trincea. Trova il condotto di scarico!", 3);
+  showYoda(3.2);
 }
 
 function proj(px, py, pz) {
@@ -934,46 +938,28 @@ function trenchSpawn() {
   const t = trench, rng = t.rng;
   const prog = clamp(t.dist / t.firstPortAt, 0, 1);
   const z = TR.SPAWN;
-  const roll = rng();
 
-  if (roll < 0.34) {
-    // struttura al suolo: si passa sopra o di lato (luci ambra sul bordo alto)
-    const v = rng();
-    let o;
-    if (v < 0.3) o = { x0: -1.05, x1: rand2(rng, -0.1, 0.3), y0: 0, y1: rand2(rng, 0.5, 0.78) };
-    else if (v < 0.6) o = { x0: rand2(rng, -0.3, 0.1), x1: 1.05, y0: 0, y1: rand2(rng, 0.5, 0.78) };
-    else if (v < 0.85) {
-      const cx = rand2(rng, -0.35, 0.35);
-      o = { x0: cx - 0.42, x1: cx + 0.42, y0: 0, y1: rand2(rng, 0.5, 0.72) };
-    } else o = { x0: -1.05, x1: 1.05, y0: 0, y1: rand2(rng, 0.34, 0.46) };
-    o.kind = "building"; o.z = z; o.hitDone = false;
+  // piccole sporgenze attaccate alle pareti: 1 o 2 (su lati opposti, sfalsate)
+  const n = rng() < 0.45 + prog * 0.25 ? 2 : 1;
+  let firstLeft = rng() < 0.5;
+  for (let i = 0; i < n; i++) {
+    const left = i === 0 ? firstLeft : !firstLeft;
+    const len = rand2(rng, lerp(0.3, 0.38, prog), lerp(0.48, 0.62, prog));
+    const yc = rand2(rng, 0.26, 1.06);
+    const h = rand2(rng, 0.28, 0.44);
+    const o = {
+      kind: "stub",
+      y0: Math.max(0.02, yc - h / 2),
+      y1: Math.min(1.28, yc + h / 2),
+      z: z + i * rand2(rng, 2.5, 4.5),
+      hitDone: false,
+    };
+    if (left) { o.x0 = -1.06; o.x1 = -1 + len; o.innerEdge = o.x1; }
+    else { o.x0 = 1 - len; o.x1 = 1.06; o.innerEdge = o.x0; }
     t.obstacles.push(o);
-  } else if (roll < 0.56) {
-    // ponte sospeso tra le pareti: si passa sotto (luci azzurre sul bordo basso)
-    const b = rand2(rng, lerp(0.62, 0.5, prog), 0.72);
-    t.obstacles.push({ kind: "bridge", x0: -1.05, x1: 1.05, y0: b, y1: b + 0.3, z, hitDone: false });
-  } else if (roll < 0.72) {
-    // paratia sporgente dalla parete: scarta dall'altra parte (luci rosse sul bordo libero)
-    const fromLeft = rng() < 0.5;
-    const wdt = rand2(rng, lerp(0.75, 0.95, prog), 1.15);
-    const o = fromLeft
-      ? { x0: -1.05, x1: -1.05 + wdt, innerEdge: -1.05 + wdt }
-      : { x0: 1.05 - wdt, x1: 1.05, innerEdge: 1.05 - wdt };
-    o.kind = "fin"; o.y0 = 0; o.y1 = TR.TOPH; o.z = z; o.hitDone = false;
-    t.obstacles.push(o);
-  } else if (roll < 0.82) {
-    // colonna centrale (luci rosse su entrambi i bordi)
-    const cx = rand2(rng, -0.4, 0.4);
-    t.obstacles.push({ kind: "pillar", x0: cx - 0.2, x1: cx + 0.2, y0: 0, y1: TR.TOPH, z, hitDone: false });
-  } else {
-    // portale: varco illuminato in verde tra due paratie
-    const gx = rand2(rng, -0.3, 0.3);
-    const gh = lerp(0.34, 0.27, prog);
-    t.obstacles.push({ kind: "gate", x0: -1.05, x1: gx - gh, innerEdge: gx - gh, y0: 0, y1: TR.TOPH, z, hitDone: false });
-    t.obstacles.push({ kind: "gate", x0: gx + gh, x1: 1.05, innerEdge: gx + gh, y0: 0, y1: TR.TOPH, z, hitDone: false });
   }
 
-  // ogni tanto una torretta accompagna l'ostacolo
+  // ogni tanto una torretta accompagna le sporgenze
   if (rng() < 0.35 + prog * 0.25) {
     const side = rng() < 0.6 ? (rng() < 0.5 ? "left" : "right") : "floor";
     t.turrets.push({
@@ -987,7 +973,7 @@ function trenchSpawn() {
     });
   }
 
-  t.nextSpawn = t.dist + lerp(rand2(rng, 15, 20), rand2(rng, 10.5, 14), prog);
+  t.nextSpawn = t.dist + lerp(rand2(rng, 9, 13), rand2(rng, 6.5, 10), prog);
 }
 
 const rand2 = (rng, a, b) => a + rng() * (b - a);
@@ -1007,7 +993,7 @@ function updateTrench(dt) {
   const spd = t.slowT > 0 ? t.speed * 0.55 : t.speed;
   if (t.hintT > 0) {
     t.hintT -= dt;
-    if (t.hintT <= 0) showMsg("Le luci segnano il bordo libero: ambra sopra · azzurro sotto · rosse/verdi di lato", 4);
+    if (t.hintT <= 0) showMsg("Schiva le sporgenze sulle pareti e abbatti i caccia in arrivo!", 3.5);
   }
   t.camX = sh.x * 0.5;
   t.camY = sh.y * 0.5 + 0.55;
@@ -1087,6 +1073,51 @@ function updateTrench(dt) {
     AudioFX.warn();
   }
 
+  // caccia TIE in arrivo frontale al centro della trincea
+  if (t.dist >= t.nextTieAt && t.dist < t.portAt - 85) {
+    const prog2 = clamp(t.dist / t.firstPortAt, 0, 1);
+    const nT = t.rng() < prog2 * 0.6 ? 2 : 1;
+    for (let i = 0; i < nT; i++) {
+      t.ties.push({
+        baseX: rand(-0.45, 0.45),
+        baseY: rand(0.35, 0.95),
+        x: 0, y: 0.6,
+        z: TR.SPAWN + 4 + i * 6,
+        wob: rand(0, TAU),
+        fireCd: rand(0.9, 1.7),
+      });
+    }
+    t.nextTieAt = t.dist + lerp(rand(125, 170), rand(85, 120), prog2);
+  }
+  for (let i = t.ties.length - 1; i >= 0; i--) {
+    const e = t.ties[i];
+    e.z -= (spd + 9) * dt;
+    e.baseX += (sh.x - e.baseX) * 0.25 * dt; // deriva verso la tua corsia
+    e.x = clamp(e.baseX + Math.sin(G.time * 2.2 + e.wob) * 0.16, -0.8, 0.8);
+    e.y = clamp(e.baseY + Math.sin(G.time * 1.9 + e.wob) * 0.12, 0.12, 1.2);
+    e.fireCd -= dt;
+    if (e.fireCd <= 0 && e.z > 6 && e.z < 34 && t.bolts.length < 12) {
+      const closing = spd + 11;
+      const tt2 = e.z / closing;
+      t.bolts.push({
+        x: e.x, y: e.y, z: e.z,
+        vx: (clamp(sh.x + sh.vx * tt2 * 0.6 + rand(-0.12, 0.12), -0.95, 0.95) - e.x) / tt2,
+        vy: (clamp(sh.y + sh.vy * tt2 * 0.6 + rand(-0.1, 0.1), 0.05, 1.2) - e.y) / tt2,
+        vz: -11,
+      });
+      e.fireCd = rand(1.1, 2.0);
+      AudioFX.enemyLaser();
+    }
+    if (e.z < -0.8) { t.ties.splice(i, 1); continue; }
+    if (sh.inv <= 0 && Math.abs(e.z) < 0.6 &&
+        Math.abs(e.x - sh.x) < 0.17 && Math.abs(e.y - sh.y) < 0.13) {
+      t.ties.splice(i, 1);
+      spawn3Burst(t, e.x, e.y, 0.4, 20, EXPL_COLS);
+      trenchHitPlayer();
+      if (G.screen !== "trench") return;
+    }
+  }
+
   // torrette
   for (let i = t.turrets.length - 1; i >= 0; i--) {
     const tur = t.turrets[i];
@@ -1133,6 +1164,19 @@ function updateTrench(dt) {
     const l = t.lasers[i];
     l.z += (l.vz + spd) * dt * 0.9;
     let dead = l.z > TR.SPAWN + 4;
+    if (!dead) {
+      for (let j = t.ties.length - 1; j >= 0; j--) {
+        const e = t.ties[j];
+        if (Math.abs(l.z - e.z) < 1.7 && Math.abs(l.x - e.x) < 0.2 && Math.abs(l.y - e.y) < 0.17) {
+          t.ties.splice(j, 1);
+          dead = true;
+          G.score += 200;
+          spawn3Burst(t, e.x, e.y, e.z, 20, EXPL_COLS);
+          AudioFX.boom();
+          break;
+        }
+      }
+    }
     if (!dead) {
       for (let j = t.turrets.length - 1; j >= 0; j--) {
         const tur = t.turrets[j];
@@ -1185,6 +1229,20 @@ function updateTrench(dt) {
         t.torps.splice(i, 1);
         tp.deadFlag = true;
         break;
+      }
+    }
+    if (!tp.deadFlag) {
+      for (let j = t.ties.length - 1; j >= 0; j--) {
+        const e = t.ties[j];
+        if (Math.abs(tp.z - e.z) < 1.7 && Math.abs(tp.x - e.x) < 0.4 && Math.abs(tp.y - e.y) < 0.4) {
+          t.ties.splice(j, 1);
+          G.score += 200;
+          spawn3Burst(t, e.x, e.y, e.z, 22, EXPL_COLS);
+          AudioFX.boom();
+          t.torps.splice(i, 1);
+          tp.deadFlag = true;
+          break;
+        }
       }
     }
     if (tp.deadFlag) continue;
@@ -1378,6 +1436,10 @@ function drawTrench(noHud) {
   const items = [];
   if (t.port) items.push({ z: t.port.z, fn: () => drawPort(t.port) });
   for (const o of t.obstacles) items.push({ z: o.z, fn: () => drawObstacle(o) });
+  for (const e of t.ties) items.push({ z: e.z, fn: () => {
+    const p = proj(e.x, e.y, e.z);
+    drawTIE(p.x, p.y, Math.max(0.08, p.s * 0.0095));
+  } });
   for (const tur of t.turrets) items.push({ z: tur.z, fn: () => drawTurret(tur) });
   for (const b of t.bolts) items.push({ z: b.z, fn: () => drawTrenchBolt(b, "rgba(80,255,120,0.95)", "#e2ffe8") });
   for (const l of t.lasers) items.push({ z: l.z, fn: () => drawTrenchBolt(l, "rgba(255,70,60,0.95)", "#ffe2df") });
@@ -1416,14 +1478,9 @@ function drawTrench(noHud) {
   }
 }
 
-// Ogni famiglia di ostacoli ha una palette e un colore-luce che dice come superarlo:
-// ambra = passa sopra · azzurro = passa sotto · rosso = scarta di lato · verde = varco sicuro.
+// Sporgenze attaccate alle pareti: luci rosse lampeggianti sul bordo libero.
 const OB_PAL = {
-  building: { front: "#453f33", top: "#6e6450", side: "#332f26", back: "#2a271f", edge: "#8a7c5e", light: "#ffb347" },
-  bridge:   { front: "#33415c", top: "#54688c", side: "#273349", back: "#202b3d", edge: "#6c86b8", light: "#6fd6ff" },
-  fin:      { front: "#472f36", top: "#6b4650", side: "#35232a", back: "#291b20", edge: "#8f5a6a", light: "#ff6b6b" },
-  pillar:   { front: "#472f36", top: "#6b4650", side: "#35232a", back: "#291b20", edge: "#8f5a6a", light: "#ff6b6b" },
-  gate:     { front: "#472f36", top: "#6b4650", side: "#35232a", back: "#291b20", edge: "#8f5a6a", light: "#59ff8a" },
+  stub: { front: "#472f36", top: "#6b4650", side: "#35232a", back: "#291b20", edge: "#8f5a6a", light: "#ff6b6b" },
 };
 const OB_DEPTH = 1.4;
 
@@ -1501,50 +1558,13 @@ function drawBeacon(x, y, z, color, phase) {
 
 function drawObstacle(o) {
   const warn = o === trench.warnObs;
-  const pal = OB_PAL[o.kind] || OB_PAL.building;
-
-  if (o.kind === "bridge") {
-    // ombra proiettata sul pavimento: dice subito "questo è sopra di te"
-    drawGroundShadow(o.x0 + 0.06, o.x1 - 0.06, o.z + 0.15, OB_DEPTH, 0.28);
-    // piloni di sostegno verso il bordo delle pareti
-    for (const sx of [-0.94, 0.94]) {
-      const a = proj(sx - 0.035, o.y1, o.z), b2 = proj(sx + 0.035, o.y1, o.z);
-      const cT = proj(sx + 0.035, TR.TOPH, o.z), dT = proj(sx - 0.035, TR.TOPH, o.z);
-      ctx.fillStyle = pal.side;
-      poly([[a.x, a.y], [b2.x, b2.y], [cT.x, cT.y], [dT.x, dT.y]]); ctx.fill();
-    }
-    drawBox3D(o.x0, o.x1, o.y0, o.y1, o.z, OB_DEPTH, pal, warn, "h");
-    // luci azzurre sul bordo basso: passa sotto le luci
-    for (let i = 0; i < 5; i++) {
-      const bx = lerp(o.x0 + 0.12, o.x1 - 0.12, i / 4);
-      drawBeacon(bx, o.y0 - 0.015, o.z, pal.light, i * 1.3 + o.z);
-    }
-    return;
-  }
-
-  // tutte le altre strutture poggiano a terra: ombra di contatto
-  drawGroundShadow(Math.max(o.x0, -1), Math.min(o.x1, 1), o.z, OB_DEPTH, 0.4);
-  drawBox3D(o.x0, o.x1, o.y0, o.y1, o.z, OB_DEPTH, pal, warn, o.kind === "building" ? "h" : "v");
-
-  if (o.kind === "building") {
-    // luci ambra sul bordo alto: passa sopra le luci
-    const xa = Math.max(o.x0, -0.98) + 0.08, xb = Math.min(o.x1, 0.98) - 0.08;
-    const n = Math.max(2, Math.round((xb - xa) * 3));
-    for (let i = 0; i < n; i++) {
-      drawBeacon(lerp(xa, xb, n === 1 ? 0.5 : i / (n - 1)), o.y1 + 0.015, o.z, pal.light, i * 1.7 + o.z);
-    }
-  } else if (o.kind === "fin" || o.kind === "gate") {
-    // luci sul bordo verticale libero: passa da quel lato
-    for (let i = 0; i < 3; i++) {
-      drawBeacon(o.innerEdge, lerp(0.15, 1.05, i / 2), o.z, pal.light, i * 1.1 + o.z);
-    }
-  } else if (o.kind === "pillar") {
-    for (const ex of [o.x0, o.x1]) {
-      for (let i = 0; i < 3; i++) {
-        drawBeacon(ex, lerp(0.15, 1.05, i / 2), o.z, pal.light, i * 1.1 + ex * 4);
-      }
-    }
-  }
+  const pal = OB_PAL.stub;
+  drawBox3D(o.x0, o.x1, o.y0, o.y1, o.z, OB_DEPTH, pal, warn, "v");
+  // luci sul bordo libero: passa oltre le luci
+  const ym = (o.y0 + o.y1) / 2;
+  drawBeacon(o.innerEdge, o.y0 + 0.04, o.z, pal.light, o.z * 1.3);
+  drawBeacon(o.innerEdge, ym, o.z, pal.light, o.z * 1.3 + 1);
+  drawBeacon(o.innerEdge, o.y1 - 0.04, o.z, pal.light, o.z * 1.3 + 2);
 }
 
 function drawTurret(tur) {
@@ -1965,6 +1985,122 @@ function drawMsg() {
   ctx.globalAlpha = 1;
 }
 
+// ---------------------------------------------------------- Yoda, spirito della Forza
+let yodaFx = null;
+function showYoda(dur) {
+  yodaFx = { t: 0, dur: dur || 3.2 };
+  AudioFX.force();
+}
+
+function drawYoda(cx, cy, s, alpha) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(s, s);
+  ctx.globalAlpha = alpha;
+
+  // aura da spirito della Forza
+  const aur = ctx.createRadialGradient(0, 0, 0.1, 0, 0, 1.2);
+  aur.addColorStop(0, "rgba(150,205,255,0.4)");
+  aur.addColorStop(0.65, "rgba(120,180,255,0.14)");
+  aur.addColorStop(1, "rgba(120,180,255,0)");
+  ctx.fillStyle = aur;
+  ctx.beginPath(); ctx.arc(0, 0.1, 1.2, 0, TAU); ctx.fill();
+
+  // tunica
+  ctx.fillStyle = "#b9a98c";
+  ctx.strokeStyle = "#877a60";
+  ctx.lineWidth = 0.018;
+  ctx.beginPath();
+  ctx.moveTo(-0.32, 0.02);
+  ctx.quadraticCurveTo(-0.54, 0.5, -0.46, 0.86);
+  ctx.lineTo(0.46, 0.86);
+  ctx.quadraticCurveTo(0.54, 0.5, 0.32, 0.02);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  // scollo a V più scuro
+  ctx.fillStyle = "#93856a";
+  ctx.beginPath();
+  ctx.moveTo(-0.15, 0.05); ctx.lineTo(0, 0.36); ctx.lineTo(0.15, 0.05);
+  ctx.closePath(); ctx.fill();
+  // maniche giunte
+  ctx.fillStyle = "#b9a98c";
+  ctx.beginPath(); ctx.ellipse(0, 0.33, 0.2, 0.085, 0, 0, TAU); ctx.fill(); ctx.stroke();
+  // manine verdi
+  ctx.fillStyle = "#8fbc6f";
+  ctx.beginPath();
+  ctx.arc(-0.045, 0.31, 0.042, 0, TAU);
+  ctx.arc(0.055, 0.32, 0.042, 0, TAU);
+  ctx.fill();
+
+  // orecchie a punta
+  ctx.fillStyle = "#93c47d";
+  ctx.strokeStyle = "#5f8f4e";
+  ctx.lineWidth = 0.014;
+  ctx.beginPath();
+  ctx.moveTo(-0.13, -0.42);
+  ctx.quadraticCurveTo(-0.42, -0.5, -0.62, -0.36);
+  ctx.quadraticCurveTo(-0.4, -0.26, -0.15, -0.25);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(0.13, -0.42);
+  ctx.quadraticCurveTo(0.42, -0.5, 0.62, -0.36);
+  ctx.quadraticCurveTo(0.4, -0.26, 0.15, -0.25);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+
+  // testa
+  ctx.beginPath(); ctx.ellipse(0, -0.34, 0.21, 0.185, 0, 0, TAU); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(0, -0.22, 0.155, 0.13, 0, 0, TAU); ctx.fill();
+
+  // ciuffi di capelli bianchi
+  ctx.strokeStyle = "rgba(240,240,235,0.85)";
+  ctx.lineWidth = 0.013;
+  ctx.beginPath();
+  ctx.moveTo(-0.18, -0.47); ctx.quadraticCurveTo(-0.26, -0.54, -0.3, -0.48);
+  ctx.moveTo(0.18, -0.47); ctx.quadraticCurveTo(0.26, -0.54, 0.3, -0.48);
+  ctx.moveTo(-0.05, -0.52); ctx.quadraticCurveTo(0, -0.57, 0.05, -0.52);
+  ctx.stroke();
+
+  // rughe della saggezza
+  ctx.strokeStyle = "#5f8f4e";
+  ctx.lineWidth = 0.011;
+  ctx.beginPath();
+  ctx.moveTo(-0.07, -0.44); ctx.quadraticCurveTo(0, -0.47, 0.07, -0.44);
+  ctx.moveTo(-0.05, -0.4); ctx.quadraticCurveTo(0, -0.425, 0.05, -0.4);
+  ctx.stroke();
+
+  // occhi
+  ctx.fillStyle = "#20301f";
+  ctx.beginPath();
+  ctx.ellipse(-0.078, -0.3, 0.028, 0.036, 0, 0, TAU);
+  ctx.ellipse(0.078, -0.3, 0.028, 0.036, 0, 0, TAU);
+  ctx.fill();
+  ctx.fillStyle = "rgba(255,255,255,0.9)";
+  ctx.beginPath();
+  ctx.arc(-0.068, -0.315, 0.009, 0, TAU);
+  ctx.arc(0.088, -0.315, 0.009, 0, TAU);
+  ctx.fill();
+
+  // sorriso mite
+  ctx.strokeStyle = "#5f8f4e";
+  ctx.lineWidth = 0.014;
+  ctx.beginPath(); ctx.arc(0, -0.18, 0.055, 0.2 * Math.PI, 0.8 * Math.PI); ctx.stroke();
+
+  ctx.restore();
+}
+
+function drawYodaOverlay() {
+  const y = yodaFx;
+  const aIn = clamp(y.t / 0.45, 0, 1);
+  const aOut = clamp((y.dur - y.t) / 0.5, 0, 1);
+  const a = Math.min(aIn, aOut);
+  const s = MINWH * 0.17;
+  const cy = H * 0.4 + Math.sin(G.time * 1.7) * s * 0.05;
+  drawYoda(W / 2, cy, s, a * 0.92);
+  ctx.globalAlpha = a;
+  text("« Che la Forza sia con te… »", W / 2, cy + s * 1.28, Math.max(15, MINWH * 0.028), "#bfe6a8", "center", true);
+  ctx.globalAlpha = 1;
+}
+
 // ============================================================
 // LOOP PRINCIPALE
 // ============================================================
@@ -1972,6 +2108,10 @@ function update(dt) {
   G.time += dt;
   G.msgT = Math.max(0, G.msgT - dt);
   G.shake = Math.max(0, G.shake - dt * 40);
+  if (yodaFx) {
+    yodaFx.t += dt;
+    if (yodaFx.t > yodaFx.dur) yodaFx = null;
+  }
 
   // pausa
   if ((G.screen === "space" || G.screen === "trench") && popKey("KeyP")) G.paused = !G.paused;
@@ -2025,6 +2165,8 @@ function draw() {
     case "victory":  drawVictory(); break;
     case "gameover": drawGameOver(); break;
   }
+
+  if (yodaFx && (G.screen === "space" || G.screen === "trench")) drawYodaOverlay();
 
   drawMsg();
 
