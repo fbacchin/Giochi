@@ -134,6 +134,10 @@ const AudioFX = {
   thud()       { this.blip(170, 55, 0.22, "triangle", 0.34); this.noise(0.12, 0.2, 900, 250); },
   breath()     { this.noise(0.55, 0.2, 850, 280); },
   forceP()     { this.blip(70, 150, 0.7, "sine", 0.3); this.noise(0.5, 0.18, 400, 1800); },
+  ignite()     { this.blip(90, 820, 0.4, "sawtooth", 0.18); this.noise(0.25, 0.1, 500, 2400); },
+  throwW()     { this.noise(0.5, 0.2, 2400, 700); this.blip(300, 170, 0.5, "square", 0.08); },
+  sting()      { this.blip(98, 62, 0.9, "sawtooth", 0.28); this.blip(147, 96, 1.1, "sawtooth", 0.18); },
+  land()       { this.blip(150, 70, 0.12, "triangle", 0.16); },
   wave()       { this.blip(440, 660, 0.18, "square", 0.14); },
   bigBoom() {
     this.noise(2.8, 0.8, 3200, 60);
@@ -205,8 +209,10 @@ canvas.addEventListener("touchstart", (e) => {
     touchTapped = true;
   }
   for (const t of e.changedTouches) {
-    if (inCircle(t.clientX, t.clientY, fireBtn())) touchState.fireId = t.identifier;
-    else if ((G.screen === "trench" || G.screen === "duel") && inCircle(t.clientX, t.clientY, torpBtn())) {
+    if (inCircle(t.clientX, t.clientY, fireBtn())) {
+      touchState.fireId = t.identifier;
+      if (G.screen === "duel") pressedCodes.add("Space"); // tap = fendente / martella nei lock
+    } else if ((G.screen === "trench" || G.screen === "duel") && inCircle(t.clientX, t.clientY, torpBtn())) {
       touchState.torpId = t.identifier;
       if (G.screen === "trench") pressedCodes.add("KeyX");
     } else if (t.clientX < W * 0.62 && touchState.moveId === null) {
@@ -258,6 +264,7 @@ function onTouchDrag(dx, dy) {
   } else if (G.screen === "duel" && duel) {
     duel.luke.x = clamp(duel.luke.x + dx * 1.4, W * 0.06, W * 0.94);
     duel.luke.moving = 0.15;
+    if (dy < -16) pressedCodes.add("ArrowUp"); // trascina in su = salto
   }
 }
 
@@ -1069,7 +1076,7 @@ function drawDuelIntro() {
   const k = clamp(t / 2.4, 0, 1);
   const ek = 1 - (1 - k) * (1 - k);
   const vx = lerp(W * 1.12, W * 0.7, ek);
-  drawVaderChar({ x: vx, face: -1, armAng: -0.55, walkT: t * 6, hurtT: 0, staggerT: 0, kneel: 0, alpha: 1 }, S, GY);
+  drawVaderChar({ x: vx, face: -1, armAng: -0.55, walkT: t * 6, hurtT: 0, staggerT: 0, kneel: 0, alpha: 1, bladeK: 0, hasBlade: true, state: "approach" }, S, GY);
 
   text("Atterri nella Morte Nera per sabotare il raggio traente…", W / 2, H * 0.2, Math.max(13, MINWH * 0.024), "#c5cde0");
   if (t > 1.6)
@@ -1085,8 +1092,8 @@ let duel = null;
 const VADER_QUOTES = [
   "« Ora il cerchio è completo. »",
   "« La Forza è potente in te. »",
-  "« Non conosci il potere del lato oscuro. »",
   "« Impressionante… davvero impressionante. »",
+  "« La tua mancanza di fede è disturbante. »",
 ];
 
 function initDuel() {
@@ -1095,26 +1102,90 @@ function initDuel() {
       x: W * 0.28, hp: 5, state: "idle", t: 0, atkCd: 0,
       blocking: false, blockT: 9, face: 1, hurtT: 0, armAng: -0.5,
       walkT: 0, moving: 0, didHit: false, pushVx: 0,
+      airY: 0, vy: 0, rot: 0, landLag: 0, stunT: 0, bladeK: 0,
     },
     vader: {
       x: W * 0.72, hp: 8, state: "idle", t: 0, cd: 1.4,
       forceCd: 7, face: -1, hurtT: 0, armAng: -0.65,
       walkT: 0, staggerT: 0, quote: null, quoteT: 0, quoteCd: 4,
-      combo: false, kneel: 0, alpha: 1, blockT: 0, pushVx: 0,
+      combo: false, kneel: 0, alpha: 1, pushVx: 0, windupDur: 0.5,
+      bladeK: 0, hasBlade: true, phase2: false, throwCd: 3,
     },
-    sparks: [], rings: [],
-    introT: 1.3, overT: 0,
+    saber: null,           // spada lanciata in volo
+    trailL: [], trailV: [],
+    sparks: [], rings: [], floats: [],
+    lock: null,
+    introT: 2.0, overT: 0,
+    hitStop: 0, slowmo: 0, phase2Cine: 0,
+    mercyUsed: false, crackleT: 0,
+    igV: false, igL: false,
   };
   G.duelStartScore = G.score;
   AudioFX.humStart(); // ronzio delle lame
 }
 
-function duelSpark(x, y, cols) {
-  spawnBurst(duel.sparks, x, y, 16, cols, 260, 0.5);
+function addFloat(x, y, txt, col) {
+  duel.floats.push({ x, y, txt, col, t: 0 });
 }
 
-function updateDuel(dt) {
-  const d = duel, l = d.luke, v = d.vader;
+function duelSpark(x, y, cols, n) {
+  spawnBurst(duel.sparks, x, y, n || 16, cols, 280, 0.5);
+}
+
+// punti della lama in coordinate mondo (per scie, lock e riflessi)
+function bladePts(f, S, GY, isVader) {
+  const sc = isVader ? S * 1.16 : S;
+  const shx = f.x + f.face * sc * (isVader ? 10 : 8);
+  const shy = GY + (f.airY || 0) - sc * (isVader ? 82 : 80) + (isVader ? (f.kneel || 0) * S * 22 : 0);
+  const hx = shx + f.face * Math.cos(f.armAng) * sc * (isVader ? 28 : 26);
+  const hy = shy + Math.sin(f.armAng) * sc * (isVader ? 28 : 26);
+  const len = (isVader ? sc * 92 : sc * 88) * (f.bladeK !== undefined ? f.bladeK : 1) * (isVader ? 1 - (f.kneel || 0) * 0.9 : 1);
+  return { hx, hy, tx: hx + f.face * Math.cos(f.armAng) * len, ty: hy + Math.sin(f.armAng) * len };
+}
+
+function lukeTakesHit(cause) {
+  const d = duel, l = d.luke;
+  const S = MINWH / 420, GY = H * 0.74;
+  l.hp--;
+  l.hurtT = 0.35;
+  AudioFX.thud();
+  duelSpark(l.x, GY + l.airY - S * 70, ["#ff5c33", "#ffe9c9"]);
+  l.pushVx = (l.x > d.vader.x ? 1 : -1) * 300;
+  G.shake = 10;
+  d.hitStop = 0.07;
+  if (l.hp <= 0) {
+    gameOver("duel", cause);
+    return true;
+  }
+  // la Forza ti sostiene, una volta sola
+  if (l.hp === 1 && !d.mercyUsed) {
+    d.mercyUsed = true;
+    l.hp = 2;
+    d.slowmo = 0.9;
+    showYoda(2.6, "« Usa la Forza, Luke… »");
+    addFloat(l.x, GY - S * 150, "+1 CUORE", "#bfe6a8");
+  }
+  return false;
+}
+
+function startLock() {
+  const d = duel;
+  d.lock = { t: 0, meter: 0.55 };
+  d.luke.state = "idle";
+  d.luke.blocking = false;
+  d.vader.state = "lock";
+  AudioFX.clash();
+  G.shake = 8;
+}
+
+function updateDuel(rdt) {
+  const d = duel;
+  if (!d) return;
+  if (d.hitStop > 0) { d.hitStop -= rdt; return; }
+  d.slowmo = Math.max(0, d.slowmo - rdt);
+  const dt = rdt * (d.slowmo > 0 ? 0.35 : 1);
+
+  const l = d.luke, v = d.vader;
   const S = MINWH / 420, GY = H * 0.74;
   const reach = S * 140;
 
@@ -1124,14 +1195,36 @@ function updateDuel(dt) {
     d.rings[i].a -= dt * 2.2;
     if (d.rings[i].a <= 0) d.rings.splice(i, 1);
   }
+  for (let i = d.floats.length - 1; i >= 0; i--) {
+    d.floats[i].t += rdt;
+    if (d.floats[i].t > 1.15) d.floats.splice(i, 1);
+  }
+  const decayTrail = (arr) => {
+    for (let i = arr.length - 1; i >= 0; i--) {
+      arr[i].life -= rdt * 4.5;
+      if (arr[i].life <= 0) arr.splice(i, 1);
+    }
+  };
+  decayTrail(d.trailL); decayTrail(d.trailV);
 
-  if (d.introT > 0) { d.introT -= dt; return; }
+  // ---- accensione delle lame ----
+  if (d.introT > 0) {
+    d.introT -= rdt;
+    const el = 2.0 - Math.max(0, d.introT);
+    if (!d.igV && el > 0.15) { d.igV = true; AudioFX.ignite(); }
+    if (!d.igL && el > 0.75) { d.igL = true; AudioFX.ignite(); }
+    v.bladeK = clamp((el - 0.15) / 0.4, 0, 1);
+    l.bladeK = clamp((el - 0.75) / 0.4, 0, 1);
+    return;
+  }
+  l.bladeK = 1;
+  if (v.hasBlade) v.bladeK = Math.min(1, v.bladeK + dt * 6);
 
-  // vittoria: Vader si ritira
+  // ---- vittoria: Vader si ritira ----
   if (d.overT > 0) {
-    d.overT += dt;
-    v.kneel = clamp(v.kneel + dt * 1.2, 0, 1);
-    if (d.overT > 1.2) v.alpha = clamp(v.alpha - dt * 0.9, 0, 1);
+    d.overT += rdt;
+    v.kneel = clamp(v.kneel + rdt * 1.2, 0, 1);
+    if (d.overT > 1.2) v.alpha = clamp(v.alpha - rdt * 0.9, 0, 1);
     if (d.overT > 2.6) {
       AudioFX.humStop();
       pressedCodes.clear();
@@ -1142,17 +1235,113 @@ function updateDuel(dt) {
     return;
   }
 
+  // ---- cinematica fase 2 ----
+  if (d.phase2Cine > 0) {
+    d.phase2Cine -= rdt;
+    v.armAng = lerp(v.armAng, -1.15, Math.min(1, rdt * 4));
+    if (d.phase2Cine <= 0) showMsg("Vader libera il lato oscuro: attento alla spada lanciata!", 2.6);
+    return;
+  }
+
   l.face = v.x > l.x ? 1 : -1;
   v.face = l.x > v.x ? 1 : -1;
-  const atkPressed = popKey("Space"); // cattura anche i tocchi rapidissimi
+  const atkPressed = popKey("Space");
+  const jumpPressed = popKey("ArrowUp") || popKey("KeyW");
   l.hurtT = Math.max(0, l.hurtT - dt);
   v.hurtT = Math.max(0, v.hurtT - dt);
   l.atkCd = Math.max(0, l.atkCd - dt);
   l.moving = Math.max(0, l.moving - dt);
+  l.landLag = Math.max(0, l.landLag - dt);
+  l.stunT = Math.max(0, l.stunT - dt);
 
-  // ---- LUKE (giocatore) ----
-  const mv = 300 * dt;
-  if (l.state !== "atk") {
+  // ---- BLADE LOCK: lame incrociate, martella SPAZIO ----
+  if (d.lock) {
+    const Lk = d.lock;
+    Lk.t += dt;
+    const dir = v.x > l.x ? 1 : -1;
+    const mid = (l.x + v.x) / 2;
+    l.x = lerp(l.x, mid - dir * S * 52, Math.min(1, dt * 10));
+    v.x = lerp(v.x, mid + dir * S * 52, Math.min(1, dt * 10));
+    l.armAng = lerp(l.armAng, -1.0, Math.min(1, dt * 12));
+    v.armAng = lerp(v.armAng, -2.1, Math.min(1, dt * 12));
+    l.airY = 0; l.vy = 0;
+    if (atkPressed) Lk.meter = clamp(Lk.meter + 0.075, 0, 1);
+    Lk.meter = clamp(Lk.meter - dt * (v.phase2 ? 0.3 : 0.24), 0, 1);
+    d.crackleT -= dt;
+    const cp = { x: mid, y: GY - S * 86 };
+    if (d.crackleT <= 0) {
+      d.crackleT = 0.09;
+      duelSpark(cp.x + rand(-6, 6), cp.y + rand(-8, 8), ["#ffe9c9", "#7fd4ff", "#ffffff"], 5);
+      AudioFX.blip(1300 + Math.random() * 700, 900, 0.05, "sawtooth", 0.05);
+    }
+    G.shake = Math.max(G.shake, 2.2);
+    if (Lk.meter >= 0.98 || (Lk.t > 2.8 && Lk.meter >= 0.55)) {
+      d.lock = null;
+      v.staggerT = 1.4;
+      v.pushVx = dir * 430;
+      d.slowmo = 0.5;
+      d.hitStop = 0.06;
+      duelSpark(cp.x, cp.y, ["#ffffff", "#bfe6a8", "#7fd4ff"], 30);
+      AudioFX.clash();
+      addFloat(mid, GY - S * 130, "RESPINTO!", "#bfe6a8");
+    } else if (Lk.t > 2.8) {
+      d.lock = null;
+      l.pushVx = -dir * 480;
+      l.stunT = 0.55;
+      v.state = "recover"; v.t = 0; v.cd = 0.35;
+      AudioFX.thud();
+      addFloat(mid, GY - S * 130, "SOPRAFFATTO!", "#ff8c85");
+    }
+    return;
+  }
+
+  // ---- LUKE ----
+  // fisica del salto (capriola jedi)
+  const grounded = l.airY >= 0 && l.vy === 0;
+  if (!grounded || l.vy !== 0) {
+    l.vy += S * 2600 * dt;
+    l.airY += l.vy * dt;
+    if (l.state !== "plunge") l.rot -= l.face * dt * 9;
+    if (l.airY >= 0) {
+      l.airY = 0; l.vy = 0; l.rot = 0;
+      AudioFX.land();
+      spawnBurst(d.sparks, l.x, GY, 6, ["#8b90a0"], 90, 0.3);
+      if (l.state === "plunge") {
+        // colpo dall'alto: spezza la guardia
+        l.state = "idle"; l.atkCd = 0.5;
+        if (Math.abs(v.x - l.x) < reach && v.alpha > 0.5) {
+          if (v.staggerT <= 0 && (v.state === "block" || Math.random() < 0.55)) {
+            v.staggerT = 1.15;
+            AudioFX.clash();
+            duelSpark(v.x, GY - S * 85, ["#ffffff", "#ffe9c9"], 26);
+            addFloat(v.x, GY - S * 140, "GUARDIA SPEZZATA!", "#ffe81f");
+            d.hitStop = 0.1;
+            G.shake = 10;
+          } else {
+            v.hp--; v.hurtT = 0.3;
+            G.score += 250;
+            AudioFX.thud();
+            duelSpark(v.x, GY - S * 80, ["#ff9d4d", "#ff5c33"], 22);
+            addFloat(v.x, GY - S * 140, "+250", "#ffe9c9");
+            v.pushVx = l.face * 320;
+            d.hitStop = 0.08;
+            G.shake = 9;
+          }
+        } else {
+          l.landLag = 0.3; // a vuoto: punibile
+        }
+      } else l.landLag = 0.12;
+    }
+  }
+  if (grounded && jumpPressed && l.state === "idle" && !l.blocking && l.stunT <= 0 && l.landLag <= 0) {
+    l.vy = -S * 950;
+    l.airY = -0.01;
+    AudioFX.swing();
+  }
+
+  // movimento
+  const mv = (grounded ? 300 : 260) * dt;
+  if (l.state !== "atk" && l.state !== "plunge" && l.stunT <= 0) {
     if (keys["ArrowLeft"] || keys["KeyA"]) { l.x -= mv; l.moving = 0.1; }
     if (keys["ArrowRight"] || keys["KeyD"]) { l.x += mv; l.moving = 0.1; }
   }
@@ -1161,9 +1350,23 @@ function updateDuel(dt) {
   l.x = clamp(l.x, W * 0.06, W * 0.94);
   l.walkT += dt * (l.moving > 0 ? 1 : 0);
 
+  // parata (solo a terra)
   const wasBlocking = l.blocking;
-  l.blocking = l.state !== "atk" && blockHeld();
+  l.blocking = grounded && l.state !== "atk" && l.stunT <= 0 && blockHeld();
   l.blockT = l.blocking ? (wasBlocking ? l.blockT + dt : 0) : 9;
+
+  // attacchi
+  if (atkPressed && l.stunT <= 0) {
+    if (!grounded && l.state !== "plunge") {
+      l.state = "plunge";
+      l.vy = Math.max(l.vy, S * 1500);
+      l.rot = 0;
+      AudioFX.swing();
+    } else if (grounded && l.state === "idle" && !l.blocking && l.atkCd <= 0 && l.landLag <= 0) {
+      l.state = "atk"; l.t = 0; l.didHit = false; l.atkCd = 0.55;
+      AudioFX.swing();
+    }
+  }
 
   if (l.state === "atk") {
     l.t += dt;
@@ -1172,46 +1375,99 @@ function updateDuel(dt) {
     if (!l.didHit && l.t > 0.13) {
       l.didHit = true;
       if (Math.abs(v.x - l.x) < reach && v.alpha > 0.5) {
+        if (v.state === "windup" && v.staggerT <= 0) {
+          // le lame si incontrano a mezz'aria: LOCK!
+          startLock();
+          return;
+        }
         if (v.staggerT <= 0 && (v.state === "idle" || v.state === "approach") && Math.random() < 0.42) {
+          if (Math.random() < 0.3) { startLock(); return; }
           v.state = "block"; v.t = 0;
           AudioFX.clash();
           duelSpark((l.x + v.x) / 2, GY - S * 80, ["#ffe9c9", "#7fd4ff", "#ffffff"]);
-          l.pushVx = -l.face * 240;
+          l.pushVx = (l.x > v.x ? 1 : -1) * 240;
           G.shake = 6;
+          d.hitStop = 0.05;
         } else {
-          v.hp--;
-          v.hurtT = 0.3;
+          v.hp--; v.hurtT = 0.3;
           G.score += 250;
           AudioFX.thud();
           duelSpark(v.x - v.face * S * 20, GY - S * 75, ["#ff9d4d", "#ff5c33", "#ffe9c9"]);
+          addFloat(v.x, GY - S * 140, "+250", "#ffe9c9");
           v.x += l.face * S * 26;
           G.shake = 7;
-          if (v.hp <= 0) {
-            d.overT = 0.01;
-            G.score += 2000;
-            showMsg("Fener vacilla e si ritira: la via è libera!", 2.6);
-            return;
-          }
+          d.hitStop = 0.07;
         }
       }
     }
     if (l.t >= 0.34) { l.state = "idle"; l.armAng = -0.5; }
+  } else if (l.state === "plunge") {
+    l.armAng = lerp(l.armAng, 1.15, Math.min(1, dt * 14));
+  } else if (!grounded) {
+    l.armAng = lerp(l.armAng, -0.9, Math.min(1, dt * 8));
   } else if (l.blocking) {
     l.armAng = lerp(l.armAng, -1.35, Math.min(1, dt * 14));
   } else {
     l.armAng = lerp(l.armAng, -0.5 + Math.sin(G.time * 2) * 0.06, Math.min(1, dt * 8));
-    if ((fireHeld() || atkPressed) && l.atkCd <= 0) {
-      l.state = "atk"; l.t = 0; l.didHit = false; l.atkCd = 0.55;
-      AudioFX.swing();
+  }
+
+  // scia della lama di Luke
+  if (l.state === "atk" || l.state === "plunge") {
+    const bp = bladePts(l, S, GY, false);
+    d.trailL.push({ ...bp, life: 1 });
+    if (d.trailL.length > 14) d.trailL.shift();
+  }
+
+  // fine del duello?
+  if (v.hp <= 0 && d.overT === 0) {
+    d.overT = 0.01;
+    G.score += 2000;
+    saveHi();
+    showMsg("Fener vacilla e si ritira: la via è libera!", 2.6);
+    return;
+  }
+
+  // ---- spada lanciata (boomerang) ----
+  if (d.saber) {
+    const s = d.saber;
+    s.spin += dt * 24;
+    s.x += s.vx * dt;
+    const vhand = v.x + v.face * S * 14;
+    if (s.phase === "out" && ((s.vx > 0 && s.x > s.turnX) || (s.vx < 0 && s.x < s.turnX))) {
+      s.phase = "back"; s.hitDone = false;
+    }
+    if (s.phase === "back") {
+      s.vx = lerp(s.vx, (vhand > s.x ? 1 : -1) * S * 620, Math.min(1, dt * 3.5));
+      if (Math.abs(s.x - vhand) < S * 26) {
+        d.saber = null;
+        v.hasBlade = true; v.bladeK = 0.4;
+        v.throwCd = rand(6, 9);
+      }
+    }
+    if (d.saber && !s.hitDone && Math.abs(s.x - l.x) < S * 32) {
+      if (l.airY < -S * 50) {
+        s.hitDone = true;
+        addFloat(l.x, GY - S * 160, "SCHIVATO!", "#7fd4ff");
+      } else if (l.blocking) {
+        s.hitDone = true;
+        AudioFX.clash();
+        duelSpark(l.x + l.face * S * 20, GY - S * 80, ["#ffe9c9", "#ffffff"]);
+        s.phase = "back";
+        l.pushVx = (l.x > v.x ? 1 : -1) * 200;
+      } else {
+        s.hitDone = true;
+        if (lukeTakesHit("Trafitto dalla lama volante di Vader…")) return;
+      }
     }
   }
 
-  // ---- VADER (IA) ----
+  // ---- VADER ----
   v.walkT += dt;
   v.x += v.pushVx * dt;
   v.pushVx *= Math.pow(0.001, dt);
   v.x = clamp(v.x, W * 0.06, W * 0.94);
   v.forceCd -= dt;
+  v.throwCd -= dt;
   v.quoteT = Math.max(0, v.quoteT - dt);
   v.quoteCd -= dt;
   if (v.quoteCd <= 0 && v.state === "idle" && v.quoteT <= 0) {
@@ -1219,6 +1475,18 @@ function updateDuel(dt) {
     v.quoteT = 2.2;
     v.quoteCd = rand(5, 8);
     AudioFX.breath();
+  }
+
+  // risveglio del lato oscuro
+  if (!v.phase2 && v.hp <= 4) {
+    v.phase2 = true;
+    d.phase2Cine = 1.4;
+    v.quote = "« Non conosci il potere del lato oscuro. »";
+    v.quoteT = 2.8;
+    AudioFX.sting();
+    AudioFX.breath();
+    G.shake = 6;
+    return;
   }
 
   if (v.staggerT > 0) {
@@ -1229,19 +1497,27 @@ function updateDuel(dt) {
 
   const dist = Math.abs(l.x - v.x);
   switch (v.state) {
+    case "lock": // risolto sopra: rientra in idle
+      v.state = "idle";
+      break;
     case "idle":
     case "approach": {
       v.cd -= dt;
       const want = S * 125;
-      if (dist > want) { v.x += (l.x > v.x ? 1 : -1) * 135 * dt; v.state = "approach"; }
+      if (dist > want) { v.x += (l.x > v.x ? 1 : -1) * (v.phase2 ? 165 : 135) * dt; v.state = "approach"; }
       else v.state = "idle";
       v.armAng = lerp(v.armAng, -0.65 + Math.sin(G.time * 1.6) * 0.05, Math.min(1, dt * 6));
+      if (!v.hasBlade) break; // aspetta il ritorno della spada
+      if (v.phase2 && v.throwCd <= 0 && !d.saber && dist > S * 230) {
+        v.state = "throwTele"; v.t = 0;
+        break;
+      }
       if (v.forceCd <= 0 && dist < S * 330 && Math.random() < 0.5) {
         v.state = "forceTele"; v.t = 0;
-        v.forceCd = rand(7, 10);
+        v.forceCd = v.phase2 ? rand(4.5, 7) : rand(7, 10);
       } else if (v.cd <= 0 && dist < S * 165) {
         v.state = "windup"; v.t = 0;
-        v.windupDur = v.combo ? 0.26 : 0.5;
+        v.windupDur = v.combo ? 0.24 : (v.phase2 ? 0.4 : 0.5);
         v.combo = false;
       }
       break;
@@ -1257,50 +1533,49 @@ function updateDuel(dt) {
       v.t += dt;
       const k = clamp(v.t / 0.3, 0, 1);
       v.armAng = lerp(-2.35, 0.6, k * k * (3 - 2 * k));
+      const bp = bladePts(v, S, GY, true);
+      d.trailV.push({ ...bp, life: 1 });
+      if (d.trailV.length > 14) d.trailV.shift();
       if (!v.didHit && v.t > 0.1) {
         v.didHit = true;
         if (Math.abs(l.x - v.x) < reach) {
-          if (l.blocking) {
+          if (l.airY < -S * 45) {
+            addFloat(l.x, GY + l.airY - S * 130, "SCHIVATO!", "#7fd4ff");
+            v.cd = 0.7; // ha colpito l'aria: punibile
+          } else if (l.blocking) {
             if (l.blockT < 0.2) {
-              // parata perfetta: Vader barcolla
               v.staggerT = 1.15;
               AudioFX.clash();
-              showMsg("PARATA PERFETTA!", 1);
-              duelSpark((l.x + v.x) / 2, GY - S * 82, ["#7fd4ff", "#ffffff", "#bfe6a8"]);
+              addFloat((l.x + v.x) / 2, GY - S * 140, "PARATA PERFETTA!", "#bfe6a8");
+              duelSpark((l.x + v.x) / 2, GY - S * 82, ["#7fd4ff", "#ffffff", "#bfe6a8"], 24);
               G.shake = 8;
+              d.slowmo = 0.45;
+              d.hitStop = 0.06;
             } else {
               AudioFX.clash();
               duelSpark((l.x + v.x) / 2, GY - S * 80, ["#ffe9c9", "#ffffff"]);
               l.pushVx = (l.x > v.x ? 1 : -1) * 260;
               G.shake = 6;
+              d.hitStop = 0.05;
             }
           } else {
-            l.hp--;
-            l.hurtT = 0.35;
-            AudioFX.thud();
-            duelSpark(l.x, GY - S * 70, ["#ff5c33", "#ffe9c9"]);
-            l.pushVx = (l.x > v.x ? 1 : -1) * 300;
-            G.shake = 10;
-            if (l.hp <= 0) {
-              gameOver("duel", "Il lato oscuro ha prevalso… questa volta.");
-              return;
-            }
+            if (lukeTakesHit("Il lato oscuro ha prevalso… questa volta.")) return;
           }
         }
       }
       if (v.t >= 0.3) {
         v.state = "recover"; v.t = 0;
-        if (v.hp <= 4 && Math.random() < 0.45) v.combo = true;
+        if (v.hp <= 4 && Math.random() < (v.phase2 ? 0.6 : 0.45)) v.combo = true;
       }
       break;
     }
     case "recover": {
       v.t += dt;
       v.armAng = lerp(v.armAng, -0.65, Math.min(1, dt * 5));
-      if (v.t >= (v.combo ? 0.15 : 0.5)) {
+      if (v.t >= (v.combo ? 0.13 : v.phase2 ? 0.35 : 0.5)) {
         v.state = v.combo ? "windup" : "idle";
-        if (v.combo) { v.t = 0; v.windupDur = 0.26; v.combo = false; }
-        v.cd = rand(0.5, 1.3);
+        if (v.combo) { v.t = 0; v.windupDur = 0.24; v.combo = false; }
+        v.cd = v.phase2 ? rand(0.35, 0.8) : rand(0.5, 1.3);
       }
       break;
     }
@@ -1312,9 +1587,29 @@ function updateDuel(dt) {
         AudioFX.forceP();
         d.rings.push({ x: v.x + (l.x > v.x ? 1 : -1) * S * 20, y: GY - S * 78, r: S * 20, a: 0.8 });
         if (Math.abs(l.x - v.x) < S * 340) {
-          l.pushVx = (l.x > v.x ? 1 : -1) * 780;
-          G.shake = 9;
+          if (l.airY < -S * 40) {
+            addFloat(l.x, GY + l.airY - S * 130, "SCHIVATO!", "#7fd4ff");
+          } else {
+            l.pushVx = (l.x > v.x ? 1 : -1) * 780;
+            G.shake = 9;
+          }
         }
+      }
+      break;
+    }
+    case "throwTele": {
+      v.t += dt;
+      v.armAng = lerp(v.armAng, -2.6, Math.min(1, dt * 9));
+      if (v.t > 0.45) {
+        v.state = "recover"; v.t = 0;
+        v.hasBlade = false; v.bladeK = 0;
+        AudioFX.throwW();
+        d.saber = {
+          x: v.x + v.face * S * 20,
+          vx: (l.x > v.x ? 1 : -1) * S * 560,
+          turnX: l.x + (l.x > v.x ? 1 : -1) * S * 80,
+          phase: "out", spin: 0, hitDone: false,
+        };
       }
       break;
     }
@@ -1377,7 +1672,6 @@ function drawSaberBlade(hx, hy, ang, len, rgb, S) {
   ctx.strokeStyle = "rgba(255,255,255,0.95)";
   ctx.lineWidth = S * 1.7;
   ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(tx, ty); ctx.stroke();
-  // riflesso a terra
   return { tx, ty };
 }
 
@@ -1389,28 +1683,69 @@ function drawSaberGroundGlow(x, GY, rgb) {
   ctx.beginPath(); ctx.ellipse(x, GY + 6, MINWH * 0.09, MINWH * 0.018, 0, 0, TAU); ctx.fill();
 }
 
+function drawSaberTrail(arr, rgb) {
+  for (let i = 1; i < arr.length; i++) {
+    const a = arr[i - 1], b = arr[i];
+    const al = Math.min(a.life, b.life) * 0.16;
+    if (al <= 0.01) continue;
+    ctx.fillStyle = "rgba(" + rgb + "," + al.toFixed(3) + ")";
+    poly([[a.hx, a.hy], [a.tx, a.ty], [b.tx, b.ty], [b.hx, b.hy]]);
+    ctx.fill();
+  }
+}
+
+function drawFlyingSaber(s, S, GY) {
+  const y = GY - S * 75;
+  ctx.save();
+  ctx.translate(s.x, y);
+  // alone circolare della rotazione
+  ctx.strokeStyle = "rgba(255,60,50,0.15)";
+  ctx.lineWidth = S * 7;
+  ctx.beginPath(); ctx.arc(0, 0, S * 44, 0, TAU); ctx.stroke();
+  ctx.rotate(s.spin);
+  // elsa al centro, lama da un lato
+  ctx.strokeStyle = "#9aa0ad";
+  ctx.lineWidth = S * 4;
+  ctx.beginPath(); ctx.moveTo(-S * 12, 0); ctx.lineTo(0, 0); ctx.stroke();
+  drawSaberBlade(0, 0, 0, S * 80, "255,60,50", S);
+  ctx.restore();
+}
+
 function drawLukeChar(l, S, GY) {
   ctx.save();
-  ctx.translate(l.x, GY);
+  ctx.translate(l.x, GY + (l.airY || 0));
+  // capriola: ruota attorno al bacino
+  if (l.rot) {
+    ctx.translate(0, -S * 50);
+    ctx.rotate(l.rot);
+    ctx.translate(0, S * 50);
+  }
   ctx.scale(l.face, 1);
   if (l.hurtT > 0 && Math.sin(G.time * 40) > 0) ctx.globalAlpha = 0.55;
-  const walk = l.moving > 0 ? Math.sin(l.walkT * 11) : 0;
+  const airborne = (l.airY || 0) < -1;
+  const walk = !airborne && l.moving > 0 ? Math.sin(l.walkT * 11) : 0;
 
   ctx.lineCap = "round";
-  // gambe
+  // gambe (raccolte in volo)
   ctx.strokeStyle = "#b7ac91";
   ctx.lineWidth = S * 7;
   ctx.beginPath();
-  ctx.moveTo(0, -S * 46); ctx.lineTo(S * (7 + walk * 6), 0);
-  ctx.moveTo(0, -S * 46); ctx.lineTo(S * (-7 - walk * 6), 0);
+  if (airborne) {
+    ctx.moveTo(0, -S * 46); ctx.lineTo(S * 9, -S * 24); ctx.lineTo(S * 2, -S * 12);
+    ctx.moveTo(0, -S * 46); ctx.lineTo(-S * 4, -S * 22); ctx.lineTo(-S * 10, -S * 14);
+  } else {
+    ctx.moveTo(0, -S * 46); ctx.lineTo(S * (7 + walk * 6), 0);
+    ctx.moveTo(0, -S * 46); ctx.lineTo(S * (-7 - walk * 6), 0);
+  }
   ctx.stroke();
-  // stivali
-  ctx.strokeStyle = "#4a3f33";
-  ctx.lineWidth = S * 7.5;
-  ctx.beginPath();
-  ctx.moveTo(S * (7 + walk * 6) * 0.85, -S * 8); ctx.lineTo(S * (7 + walk * 6), 0);
-  ctx.moveTo(S * (-7 - walk * 6) * 0.85, -S * 8); ctx.lineTo(S * (-7 - walk * 6), 0);
-  ctx.stroke();
+  if (!airborne) {
+    ctx.strokeStyle = "#4a3f33";
+    ctx.lineWidth = S * 7.5;
+    ctx.beginPath();
+    ctx.moveTo(S * (7 + walk * 6) * 0.85, -S * 8); ctx.lineTo(S * (7 + walk * 6), 0);
+    ctx.moveTo(S * (-7 - walk * 6) * 0.85, -S * 8); ctx.lineTo(S * (-7 - walk * 6), 0);
+    ctx.stroke();
+  }
 
   // tunica
   ctx.fillStyle = "#d8d2c0";
@@ -1427,10 +1762,13 @@ function drawLukeChar(l, S, GY) {
   ctx.fillStyle = "#d9b26a";
   ctx.beginPath(); ctx.arc(S * 1.5, -S * 100, S * 11.5, Math.PI * 0.95, Math.PI * 2.05); ctx.fill();
 
-  // braccio e spada (verde)
+  // braccia a doppia presa + spada (verde)
   const shx = S * 8, shy = -S * 80;
   const hx = shx + Math.cos(l.armAng) * S * 26;
   const hy = shy + Math.sin(l.armAng) * S * 26;
+  ctx.strokeStyle = "#c9c3b1";
+  ctx.lineWidth = S * 5;
+  ctx.beginPath(); ctx.moveTo(-S * 6, -S * 78); ctx.lineTo(hx - Math.cos(l.armAng) * S * 4, hy - Math.sin(l.armAng) * S * 4); ctx.stroke();
   ctx.strokeStyle = "#d8d2c0";
   ctx.lineWidth = S * 6;
   ctx.beginPath(); ctx.moveTo(shx, shy); ctx.lineTo(hx, hy); ctx.stroke();
@@ -1440,10 +1778,12 @@ function drawLukeChar(l, S, GY) {
   ctx.moveTo(hx - Math.cos(l.armAng) * S * 9, hy - Math.sin(l.armAng) * S * 9);
   ctx.lineTo(hx, hy);
   ctx.stroke();
-  drawSaberBlade(hx, hy, l.armAng, S * 88, "80,255,110", S);
+  const lk = l.bladeK !== undefined ? l.bladeK : 1;
+  if (lk > 0.02) drawSaberBlade(hx, hy, l.armAng, S * 88 * lk, "80,255,110", S);
 
   ctx.restore();
-  drawSaberGroundGlow(l.x + l.face * Math.cos(l.armAng) * S * 60, GY, "80,255,110");
+  if ((l.airY || 0) > -S * 20)
+    drawSaberGroundGlow(l.x + l.face * Math.cos(l.armAng) * S * 60, GY, "80,255,110");
 }
 
 function drawVaderChar(v, S, GY) {
@@ -1455,12 +1795,12 @@ function drawVaderChar(v, S, GY) {
   const kneel = v.kneel || 0;
   ctx.translate(0, kneel * S * 22);
   ctx.rotate(kneel * 0.18);
-  const VS = S * 1.16; // Vader è più imponente
+  const VS = S * 1.16;
   const walk = v.state === "approach" ? Math.sin(v.walkT * 9) : 0;
 
   ctx.lineCap = "round";
   // mantello
-  const sway = Math.sin(G.time * 2.1) * S * 4;
+  const sway = Math.sin(G.time * 2.1) * S * (v.state === "approach" ? 7 : 4);
   ctx.fillStyle = "#0a0a10";
   poly([
     [-VS * 6, -VS * 88],
@@ -1484,13 +1824,11 @@ function drawVaderChar(v, S, GY) {
   ctx.lineWidth = VS * 1.4;
   poly([[-VS * 15, -VS * 44], [VS * 15, -VS * 44], [VS * 12, -VS * 90], [-VS * 12, -VS * 90]]);
   ctx.fill(); ctx.stroke();
-  // pannello pettorale
   ctx.fillStyle = "#23232d";
   ctx.fillRect(-VS * 7, -VS * 80, VS * 14, VS * 10);
   ctx.fillStyle = "#ff4b4b"; ctx.fillRect(-VS * 5, -VS * 77, VS * 2.4, VS * 2.4);
   ctx.fillStyle = "#59ff8a"; ctx.fillRect(-VS * 1, -VS * 77, VS * 2.4, VS * 2.4);
   ctx.fillStyle = "#7fd4ff"; ctx.fillRect(VS * 3, -VS * 77, VS * 2.4, VS * 2.4);
-  // cintura
   ctx.fillStyle = "#0c0c12";
   ctx.fillRect(-VS * 14, -VS * 52, VS * 28, VS * 6);
   ctx.fillStyle = "#3a3a48";
@@ -1503,17 +1841,24 @@ function drawVaderChar(v, S, GY) {
   ctx.beginPath(); ctx.arc(VS * 2, -VS * 103, VS * 13, Math.PI, 0); ctx.fill(); ctx.stroke();
   poly([[VS * -12, -VS * 103], [VS * 16, -VS * 103], [VS * 20, -VS * 92], [VS * -16, -VS * 92]]);
   ctx.fill(); ctx.stroke();
-  // maschera
   ctx.fillStyle = "#1a1a24";
   poly([[VS * -4, -VS * 101], [VS * 9, -VS * 101], [VS * 7, -VS * 92], [VS * -2, -VS * 92]]);
   ctx.fill();
-  // lenti
-  ctx.fillStyle = "#3d1216";
+  // lenti (brillano nella fase 2)
+  const p2 = v.phase2;
+  if (p2) {
+    const lg = 0.5 + 0.5 * Math.sin(G.time * 6);
+    ctx.fillStyle = "rgba(255,40,40," + (0.25 * lg).toFixed(2) + ")";
+    ctx.beginPath();
+    ctx.ellipse(VS * 0, -VS * 99, VS * 4.4, VS * 3.4, 0, 0, TAU);
+    ctx.ellipse(VS * 6.5, -VS * 99, VS * 4.4, VS * 3.4, 0, 0, TAU);
+    ctx.fill();
+  }
+  ctx.fillStyle = p2 ? "#a01a20" : "#3d1216";
   ctx.beginPath();
   ctx.ellipse(VS * 0, -VS * 99, VS * 2.6, VS * 2, 0, 0, TAU);
   ctx.ellipse(VS * 6.5, -VS * 99, VS * 2.6, VS * 2, 0, 0, TAU);
   ctx.fill();
-  // griglia
   ctx.strokeStyle = "#2c2c38";
   ctx.lineWidth = VS * 0.9;
   ctx.beginPath();
@@ -1534,11 +1879,12 @@ function drawVaderChar(v, S, GY) {
   ctx.moveTo(hx - Math.cos(v.armAng) * VS * 9, hy - Math.sin(v.armAng) * VS * 9);
   ctx.lineTo(hx, hy);
   ctx.stroke();
-  const bladeLen = VS * 92 * (1 - (v.kneel || 0) * 0.9);
-  if (bladeLen > VS * 8) drawSaberBlade(hx, hy, v.armAng, bladeLen, "255,60,50", VS);
+  const hasBlade = v.hasBlade !== false;
+  const bk = (v.bladeK !== undefined ? v.bladeK : 1) * (1 - kneel * 0.9);
+  if (hasBlade && bk > 0.02) drawSaberBlade(hx, hy, v.armAng, VS * 92 * bk, "255,60,50", VS);
 
   ctx.restore();
-  if ((v.alpha === undefined || v.alpha > 0.3) && !(v.kneel > 0.5))
+  if ((v.alpha === undefined || v.alpha > 0.3) && !(v.kneel > 0.5) && v.hasBlade !== false)
     drawSaberGroundGlow(v.x + v.face * Math.cos(v.armAng) * S * 62, GY, "255,60,50");
 }
 
@@ -1548,6 +1894,16 @@ function drawDuel() {
 
   drawCorridor();
 
+  // vignetta rossa quando il lato oscuro si risveglia
+  if (v.phase2 || d.phase2Cine > 0) {
+    const k = d.phase2Cine > 0 ? 0.5 + 0.5 * Math.sin(G.time * 10) : 0.6;
+    const vg = ctx.createRadialGradient(W / 2, H / 2, MINWH * 0.25, W / 2, H / 2, MINWH * 0.75);
+    vg.addColorStop(0, "rgba(255,40,40,0)");
+    vg.addColorStop(1, "rgba(255,40,40," + (0.12 * k).toFixed(3) + ")");
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, W, H);
+  }
+
   // anelli della spinta di Forza
   for (const r of d.rings) {
     ctx.strokeStyle = "rgba(190,120,255," + r.a.toFixed(2) + ")";
@@ -1555,36 +1911,73 @@ function drawDuel() {
     ctx.beginPath(); ctx.arc(r.x, r.y, r.r, 0, TAU); ctx.stroke();
   }
 
+  // scie delle lame
+  drawSaberTrail(d.trailV, "255,60,50");
+  drawSaberTrail(d.trailL, "80,255,110");
+
+  if (d.saber) drawFlyingSaber(d.saber, S, GY);
+
   drawVaderChar(v, S, GY);
   drawLukeChar(l, S, GY);
   drawParts(d.sparks);
 
-  // barre dei duellanti
+  // testi fluttuanti
+  for (const f of d.floats) {
+    ctx.globalAlpha = clamp(1 - f.t / 1.15, 0, 1);
+    text(f.txt, f.x, f.y - f.t * 46, Math.max(13, MINWH * 0.022), f.col, "center", true);
+  }
+  ctx.globalAlpha = 1;
+
+  // barre dei duellanti (lampeggiano quando colpiti)
+  ctx.globalAlpha = l.hurtT > 0 && Math.sin(G.time * 30) > 0 ? 0.5 : 1;
   text("LUKE SKYWALKER", 18, 24, 13, "#bfe6a8", "left", true);
   for (let i = 0; i < 5; i++) {
     ctx.fillStyle = i < l.hp ? "#59ff8a" : "rgba(120,130,160,0.25)";
     ctx.fillRect(18 + i * 26, 34, 22, 9);
   }
+  ctx.globalAlpha = v.hurtT > 0 && Math.sin(G.time * 30) > 0 ? 0.5 : 1;
   text("DARTH VADER", W - 18, 24, 13, "#ff8c85", "right", true);
   for (let i = 0; i < 8; i++) {
     ctx.fillStyle = i < v.hp ? "#ff5c5c" : "rgba(120,130,160,0.25)";
     ctx.fillRect(W - 18 - (i + 1) * 22, 34, 18, 9);
   }
+  ctx.globalAlpha = 1;
   text("PUNTI  " + fmtScore(G.score), W / 2, 24, 13, "#8fa2c5");
+
+  // incrocio di lame: barra di contesa
+  if (d.lock) {
+    const bw = MINWH * 0.4, bx = W / 2 - bw / 2, by = H * 0.17;
+    text("INCROCIO DI LAME!", W / 2, by - 26, Math.max(16, MINWH * 0.03), "#ffe81f", "center", true);
+    if (Math.sin(G.time * 12) > -0.4)
+      text("MARTELLA SPAZIO!", W / 2, by + 30, Math.max(13, MINWH * 0.024), "#ffffff", "center", true);
+    ctx.fillStyle = "rgba(120,130,160,0.25)";
+    ctx.fillRect(bx, by, bw, 12);
+    ctx.fillStyle = d.lock.meter >= 0.55 ? "#59ff8a" : "#ff8c85";
+    ctx.fillRect(bx, by, bw * d.lock.meter, 12);
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(bx + bw * 0.55, by - 3); ctx.lineTo(bx + bw * 0.55, by + 15); ctx.stroke();
+  }
 
   // battuta di Vader
   if (v.quoteT > 0 && d.overT === 0) {
     ctx.globalAlpha = clamp(v.quoteT / 0.4, 0, 1);
-    text(v.quote, v.x, GY - S * 150, Math.max(12, MINWH * 0.02), "#c5cde0");
+    text(v.quote, clamp(v.x, W * 0.2, W * 0.8), GY - S * 155, Math.max(12, MINWH * 0.02), "#c5cde0");
     ctx.globalAlpha = 1;
   }
 
-  if (d.introT > 0) {
-    text("DUELLO!", W / 2, H * 0.34, Math.max(30, MINWH * 0.07), "#ffe81f", "center", true);
-    text("SPAZIO: attacca · GIÙ/S: para (al momento giusto!) · frecce: muoviti", W / 2, H * 0.44, Math.max(12, MINWH * 0.02), "#c5cde0");
+  if (d.introT > 0 && d.introT < 1.3) {
+    text("DUELLO!", W / 2, H * 0.3, Math.max(30, MINWH * 0.07), "#ffe81f", "center", true);
+    text("SPAZIO attacco · SU salto (e SPAZIO in volo: colpo dall'alto) · GIÙ/S parata", W / 2, H * 0.4, Math.max(12, MINWH * 0.019), "#c5cde0");
   }
   if (d.overT > 0.4)
     text("La via è libera: corri al tuo caccia!", W / 2, H * 0.3, Math.max(15, MINWH * 0.028), "#ffe81f", "center", true);
+
+  // lampo dei colpi
+  if (d.hitStop > 0.045) {
+    ctx.fillStyle = "rgba(255,255,255,0.22)";
+    ctx.fillRect(0, 0, W, H);
+  }
 
   if (AudioFX.muted) text("AUDIO OFF (M)", W - 18, H - 12, 10, "#4d5670", "right");
 
@@ -1599,6 +1992,7 @@ function drawDuel() {
     ctx.beginPath(); ctx.arc(tb.x, tb.y, tb.r, 0, TAU); ctx.stroke();
     text("PARATA", tb.x, tb.y, 12, "#7fd4ff");
     ctx.globalAlpha = 1;
+    text("trascina in su = salto", W * 0.3, H - 16, 10, "#4d5670");
   }
 }
 
@@ -2800,8 +3194,8 @@ function drawMsg() {
 
 // ---------------------------------------------------------- Yoda, spirito della Forza
 let yodaFx = null;
-function showYoda(dur) {
-  yodaFx = { t: 0, dur: dur || 3.2 };
+function showYoda(dur, phrase) {
+  yodaFx = { t: 0, dur: dur || 3.2, phrase: phrase || "« Che la Forza sia con te… »" };
   AudioFX.force();
 }
 
@@ -2910,7 +3304,7 @@ function drawYodaOverlay() {
   const cy = H * 0.4 + Math.sin(G.time * 1.7) * s * 0.05;
   drawYoda(W / 2, cy, s, a * 0.92);
   ctx.globalAlpha = a;
-  text("« Che la Forza sia con te… »", W / 2, cy + s * 1.28, Math.max(15, MINWH * 0.028), "#bfe6a8", "center", true);
+  text(y.phrase, W / 2, cy + s * 1.28, Math.max(15, MINWH * 0.028), "#bfe6a8", "center", true);
   ctx.globalAlpha = 1;
 }
 
