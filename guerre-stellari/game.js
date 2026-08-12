@@ -3068,11 +3068,25 @@ function drawTrenchHUD() {
     poly([[24 + i * 18, H - 24], [18 + i * 18, H - 36], [30 + i * 18, H - 36]]);
     ctx.fill();
   }
-  // distanza dal condotto
+  // distanza dal condotto — in alto al centro, ben visibile
   const rem = Math.max(0, t.portAt - t.dist);
-  const km = (rem / t.firstPortAt * 6.2);
-  text(t.port ? "CONDOTTO IN VISTA!" : "DISTANZA CONDOTTO: " + km.toFixed(1) + " km",
-       W - 18, H - 30, 14, t.port ? "#ffb347" : "#8fa2c5", "right", t.port);
+  const km = rem / t.firstPortAt * 6.2;
+  const fs = Math.max(22, MINWH * 0.036);
+  const ty = 40 + fs * 0.6;
+  if (t.port) {
+    if (Math.sin(G.time * 8) > -0.2)
+      text("CONDOTTO IN VISTA!", W / 2, ty, fs, "#ffb347", "center", true);
+  } else {
+    text("CONDOTTO  " + km.toFixed(1) + " km", W / 2, ty, fs, "#ffe81f", "center", true);
+    // barra di avvicinamento: si riempie fino alla tacca del condotto
+    const bw = MINWH * 0.38, bx = W / 2 - bw / 2, by = ty + fs * 0.75;
+    ctx.fillStyle = "rgba(120,130,160,0.28)";
+    ctx.fillRect(bx, by, bw, 8);
+    ctx.fillStyle = "#ffb347";
+    ctx.fillRect(bx, by, bw * clamp(1 - rem / t.firstPortAt, 0, 1), 8);
+    ctx.fillStyle = "#ffe81f";
+    ctx.fillRect(bx + bw - 2, by - 3, 4, 14);
+  }
 }
 
 // ============================================================
