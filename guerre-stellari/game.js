@@ -1711,10 +1711,27 @@ function drawFlyingSaber(s, S, GY) {
   ctx.restore();
 }
 
+// arto con articolazione (gomito/ginocchio) calcolata sulla perpendicolare
+function limbSeg(x1, y1, x2, y2, bend, color, w) {
+  const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+  const dx = x2 - x1, dy = y2 - y1;
+  const len = Math.hypot(dx, dy) || 1;
+  const ex = mx - (dy / len) * bend, ey = my + (dx / len) * bend;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = w;
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(ex, ey);
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
+  return [ex, ey];
+}
+
 function drawLukeChar(l, S, GY) {
   ctx.save();
   ctx.translate(l.x, GY + (l.airY || 0));
-  // capriola: ruota attorno al bacino
   if (l.rot) {
     ctx.translate(0, -S * 50);
     ctx.rotate(l.rot);
@@ -1724,54 +1741,112 @@ function drawLukeChar(l, S, GY) {
   if (l.hurtT > 0 && Math.sin(G.time * 40) > 0) ctx.globalAlpha = 0.55;
   const airborne = (l.airY || 0) < -1;
   const walk = !airborne && l.moving > 0 ? Math.sin(l.walkT * 11) : 0;
-
+  ctx.lineJoin = "round";
   ctx.lineCap = "round";
-  // gambe (raccolte in volo)
-  ctx.strokeStyle = "#b7ac91";
-  ctx.lineWidth = S * 7;
-  ctx.beginPath();
+
+  const PANT = "#b7ac91", BOOT = "#4a3f33", TUNIC = "#ddd6c2", TUNIC2 = "#cbc4ae",
+        SKIN = "#e8c39e", HAIR = "#d9b26a", BELT = "#6b5136";
+
+  // ---- gambe con ginocchia ----
   if (airborne) {
-    ctx.moveTo(0, -S * 46); ctx.lineTo(S * 9, -S * 24); ctx.lineTo(S * 2, -S * 12);
-    ctx.moveTo(0, -S * 46); ctx.lineTo(-S * 4, -S * 22); ctx.lineTo(-S * 10, -S * 14);
+    limbSeg(-S * 2, -S * 46, S * 8, -S * 16, S * 8, PANT, S * 7.5);
+    limbSeg(-S * 2, -S * 46, -S * 9, -S * 20, -S * 8, PANT, S * 7.5);
+    // stivali raccolti
+    ctx.strokeStyle = BOOT; ctx.lineWidth = S * 8;
+    ctx.beginPath(); ctx.moveTo(S * 8, -S * 16); ctx.lineTo(S * 11, -S * 12); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-S * 9, -S * 20); ctx.lineTo(-S * 12, -S * 16); ctx.stroke();
   } else {
-    ctx.moveTo(0, -S * 46); ctx.lineTo(S * (7 + walk * 6), 0);
-    ctx.moveTo(0, -S * 46); ctx.lineTo(S * (-7 - walk * 6), 0);
+    const f1 = S * (10 + walk * 7), f2 = S * (-11 - walk * 7);
+    limbSeg(-S * 2, -S * 46, f1, -S * 6, S * 6, PANT, S * 7.5);
+    limbSeg(-S * 2, -S * 46, f2, -S * 6, -S * 5, PANT, S * 7.5);
+    // stivali con punta
+    ctx.strokeStyle = BOOT; ctx.lineWidth = S * 8;
+    ctx.beginPath(); ctx.moveTo(f1, -S * 13); ctx.lineTo(f1, -S * 2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(f2, -S * 13); ctx.lineTo(f2, -S * 2); ctx.stroke();
+    ctx.fillStyle = BOOT;
+    ctx.beginPath(); ctx.ellipse(f1 + S * 3.5, -S * 2, S * 5, S * 2.6, 0, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(f2 + S * 3.5, -S * 2, S * 5, S * 2.6, 0, 0, TAU); ctx.fill();
   }
-  ctx.stroke();
-  if (!airborne) {
-    ctx.strokeStyle = "#4a3f33";
-    ctx.lineWidth = S * 7.5;
-    ctx.beginPath();
-    ctx.moveTo(S * (7 + walk * 6) * 0.85, -S * 8); ctx.lineTo(S * (7 + walk * 6), 0);
-    ctx.moveTo(S * (-7 - walk * 6) * 0.85, -S * 8); ctx.lineTo(S * (-7 - walk * 6), 0);
-    ctx.stroke();
-  }
 
-  // tunica
-  ctx.fillStyle = "#d8d2c0";
-  ctx.strokeStyle = "#a39c88";
-  ctx.lineWidth = S * 1.2;
-  poly([[-S * 13, -S * 44], [S * 13, -S * 44], [S * 10, -S * 86], [-S * 10, -S * 86]]);
-  ctx.fill(); ctx.stroke();
-  ctx.fillStyle = "#5a4632";
-  ctx.fillRect(-S * 12, -S * 54, S * 24, S * 6);
-
-  // testa
-  ctx.fillStyle = "#e8c39e";
-  ctx.beginPath(); ctx.arc(S * 2, -S * 97, S * 11, 0, TAU); ctx.fill();
-  ctx.fillStyle = "#d9b26a";
-  ctx.beginPath(); ctx.arc(S * 1.5, -S * 100, S * 11.5, Math.PI * 0.95, Math.PI * 2.05); ctx.fill();
-
-  // braccia a doppia presa + spada (verde)
+  // ---- braccio posteriore (doppia presa, dietro il torso) ----
   const shx = S * 8, shy = -S * 80;
   const hx = shx + Math.cos(l.armAng) * S * 26;
   const hy = shy + Math.sin(l.armAng) * S * 26;
-  ctx.strokeStyle = "#c9c3b1";
+  const bhx = hx - Math.cos(l.armAng) * S * 6;
+  const bhy = hy - Math.sin(l.armAng) * S * 6;
+  limbSeg(-S * 7, -S * 79, bhx, bhy, -S * 6, TUNIC2, S * 5.5);
+
+  // ---- tunica con falda ----
+  ctx.fillStyle = TUNIC;
+  ctx.strokeStyle = "#a39c88";
+  ctx.lineWidth = S * 1.2;
+  ctx.beginPath();
+  ctx.moveTo(-S * 11, -S * 84);
+  ctx.lineTo(S * 11, -S * 84);
+  ctx.quadraticCurveTo(S * 10.5, -S * 62, S * 8.5, -S * 52);
+  ctx.lineTo(S * 12, -S * 37);
+  ctx.lineTo(-S * 12, -S * 37);
+  ctx.lineTo(-S * 8.5, -S * 52);
+  ctx.quadraticCurveTo(-S * 10.5, -S * 62, -S * 11, -S * 84);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  // spacco della falda
+  ctx.strokeStyle = "#b8b09a";
+  ctx.beginPath(); ctx.moveTo(0, -S * 50); ctx.lineTo(0, -S * 38); ctx.stroke();
+  // risvolti a V
+  ctx.fillStyle = "#eae4d2";
+  poly([[-S * 6.5, -S * 84], [0, -S * 66], [-S * 1.8, -S * 64], [-S * 9, -S * 84]]);
+  ctx.fill();
+  poly([[S * 6.5, -S * 84], [0, -S * 66], [S * 1.8, -S * 64], [S * 9, -S * 84]]);
+  ctx.fill();
+  ctx.fillStyle = SKIN;
+  poly([[-S * 3.5, -S * 84], [S * 3.5, -S * 84], [0, -S * 75]]);
+  ctx.fill();
+  // cintura con fibbia
+  ctx.fillStyle = BELT;
+  ctx.fillRect(-S * 10, -S * 55, S * 20, S * 5.5);
+  ctx.fillStyle = "#c9b37a";
+  ctx.fillRect(-S * 2.2, -S * 54.6, S * 4.4, S * 4.7);
+
+  // ---- testa di profilo ----
+  ctx.strokeStyle = SKIN;
   ctx.lineWidth = S * 5;
-  ctx.beginPath(); ctx.moveTo(-S * 6, -S * 78); ctx.lineTo(hx - Math.cos(l.armAng) * S * 4, hy - Math.sin(l.armAng) * S * 4); ctx.stroke();
-  ctx.strokeStyle = "#d8d2c0";
-  ctx.lineWidth = S * 6;
-  ctx.beginPath(); ctx.moveTo(shx, shy); ctx.lineTo(hx, hy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(S * 1, -S * 84); ctx.lineTo(S * 2, -S * 90); ctx.stroke(); // collo
+  ctx.fillStyle = SKIN;
+  ctx.beginPath(); ctx.ellipse(S * 2.5, -S * 99, S * 9.5, S * 10.5, 0, 0, TAU); ctx.fill();
+  // naso e mento
+  poly([[S * 11, -S * 102], [S * 13.6, -S * 98.5], [S * 10.5, -S * 96.5]]);
+  ctx.fill();
+  // orecchio
+  ctx.fillStyle = "#d8b28c";
+  ctx.beginPath(); ctx.ellipse(S * 0.5, -S * 98, S * 2, S * 3, 0, 0, TAU); ctx.fill();
+  // occhio e sopracciglio
+  ctx.fillStyle = "#3a3226";
+  ctx.beginPath(); ctx.ellipse(S * 8, -S * 100.5, S * 1.3, S * 1.7, 0, 0, TAU); ctx.fill();
+  ctx.strokeStyle = "#8a6f3f";
+  ctx.lineWidth = S * 1.1;
+  ctx.beginPath(); ctx.moveTo(S * 6, -S * 103.5); ctx.lineTo(S * 10.5, -S * 103); ctx.stroke();
+  // bocca
+  ctx.strokeStyle = "#b98d6d";
+  ctx.beginPath(); ctx.moveTo(S * 8.5, -S * 94.5); ctx.lineTo(S * 11, -S * 94); ctx.stroke();
+  // capelli con ciuffo
+  ctx.fillStyle = HAIR;
+  ctx.strokeStyle = "#b28f4d";
+  ctx.lineWidth = S * 0.9;
+  ctx.beginPath();
+  ctx.moveTo(S * 10.5, -S * 105);
+  ctx.quadraticCurveTo(S * 12, -S * 109, S * 8, -S * 110.5);
+  ctx.quadraticCurveTo(S * 3, -S * 112.5, -S * 3, -S * 110);
+  ctx.quadraticCurveTo(-S * 8.5, -S * 107.5, -S * 7.5, -S * 100);
+  ctx.quadraticCurveTo(-S * 7.8, -S * 94, -S * 5.5, -S * 91);
+  ctx.quadraticCurveTo(-S * 4.5, -S * 97, -S * 5.5, -S * 102);
+  ctx.quadraticCurveTo(S * 0, -S * 106.5, S * 5, -S * 105.5);
+  ctx.quadraticCurveTo(S * 8, -S * 104.5, S * 10.5, -S * 105);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+
+  // ---- braccio anteriore con gomito + spada ----
+  limbSeg(shx, shy, hx, hy, S * 6, TUNIC, S * 6);
   ctx.strokeStyle = "#9aa0ad";
   ctx.lineWidth = S * 4;
   ctx.beginPath();
@@ -1780,6 +1855,10 @@ function drawLukeChar(l, S, GY) {
   ctx.stroke();
   const lk = l.bladeK !== undefined ? l.bladeK : 1;
   if (lk > 0.02) drawSaberBlade(hx, hy, l.armAng, S * 88 * lk, "80,255,110", S);
+  // mani sull'elsa
+  ctx.fillStyle = SKIN;
+  ctx.beginPath(); ctx.arc(hx, hy, S * 3.4, 0, TAU); ctx.fill();
+  ctx.beginPath(); ctx.arc(bhx, bhy, S * 3, 0, TAU); ctx.fill();
 
   ctx.restore();
   if ((l.airY || 0) > -S * 20)
@@ -1797,82 +1876,175 @@ function drawVaderChar(v, S, GY) {
   ctx.rotate(kneel * 0.18);
   const VS = S * 1.16;
   const walk = v.state === "approach" ? Math.sin(v.walkT * 9) : 0;
-
+  ctx.lineJoin = "round";
   ctx.lineCap = "round";
-  // mantello
-  const sway = Math.sin(G.time * 2.1) * S * (v.state === "approach" ? 7 : 4);
-  ctx.fillStyle = "#0a0a10";
-  poly([
-    [-VS * 6, -VS * 88],
-    [-VS * 26 - sway, -VS * 6],
-    [VS * 2, -VS * 20],
-    [VS * 8, -VS * 84],
-  ]);
-  ctx.fill();
 
-  // gambe
-  ctx.strokeStyle = "#131318";
-  ctx.lineWidth = VS * 8;
+  const SUIT = "#14141a", ARMOR = "#1c1c26", EDGE = "#34343f", GLOVE = "#0a0a0f";
+
+  // ---- mantello a due strati, ondeggia ----
+  const sway = Math.sin(G.time * 2.1) * VS * (v.state === "approach" ? 8 : 4);
+  ctx.fillStyle = "#060609";
   ctx.beginPath();
-  ctx.moveTo(0, -VS * 46); ctx.lineTo(VS * (8 + walk * 5), 0);
-  ctx.moveTo(0, -VS * 46); ctx.lineTo(VS * (-8 - walk * 5), 0);
-  ctx.stroke();
-
-  // torso corazzato
-  ctx.fillStyle = "#15151c";
-  ctx.strokeStyle = "#2c2c38";
-  ctx.lineWidth = VS * 1.4;
-  poly([[-VS * 15, -VS * 44], [VS * 15, -VS * 44], [VS * 12, -VS * 90], [-VS * 12, -VS * 90]]);
-  ctx.fill(); ctx.stroke();
-  ctx.fillStyle = "#23232d";
-  ctx.fillRect(-VS * 7, -VS * 80, VS * 14, VS * 10);
-  ctx.fillStyle = "#ff4b4b"; ctx.fillRect(-VS * 5, -VS * 77, VS * 2.4, VS * 2.4);
-  ctx.fillStyle = "#59ff8a"; ctx.fillRect(-VS * 1, -VS * 77, VS * 2.4, VS * 2.4);
-  ctx.fillStyle = "#7fd4ff"; ctx.fillRect(VS * 3, -VS * 77, VS * 2.4, VS * 2.4);
-  ctx.fillStyle = "#0c0c12";
-  ctx.fillRect(-VS * 14, -VS * 52, VS * 28, VS * 6);
-  ctx.fillStyle = "#3a3a48";
-  ctx.fillRect(-VS * 4, -VS * 52.5, VS * 8, VS * 7);
-
-  // elmo
-  ctx.fillStyle = "#101018";
-  ctx.strokeStyle = "#33333f";
-  ctx.lineWidth = VS * 1.2;
-  ctx.beginPath(); ctx.arc(VS * 2, -VS * 103, VS * 13, Math.PI, 0); ctx.fill(); ctx.stroke();
-  poly([[VS * -12, -VS * 103], [VS * 16, -VS * 103], [VS * 20, -VS * 92], [VS * -16, -VS * 92]]);
-  ctx.fill(); ctx.stroke();
-  ctx.fillStyle = "#1a1a24";
-  poly([[VS * -4, -VS * 101], [VS * 9, -VS * 101], [VS * 7, -VS * 92], [VS * -2, -VS * 92]]);
+  ctx.moveTo(VS * 8, -VS * 88);
+  ctx.quadraticCurveTo(-VS * 14 - sway * 0.4, -VS * 60, -VS * 24 - sway, -VS * 4);
+  ctx.quadraticCurveTo(-VS * 12 - sway * 0.5, -VS * 14, -VS * 2, -VS * 10);
+  ctx.lineTo(VS * 4, -VS * 40);
+  ctx.closePath();
   ctx.fill();
-  // lenti (brillano nella fase 2)
+  ctx.fillStyle = "#101018";
+  ctx.beginPath();
+  ctx.moveTo(VS * 6, -VS * 86);
+  ctx.quadraticCurveTo(-VS * 8 - sway * 0.3, -VS * 52, -VS * 14 - sway * 0.7, -VS * 8);
+  ctx.quadraticCurveTo(-VS * 4, -VS * 16, VS * 3, -VS * 24);
+  ctx.closePath();
+  ctx.fill();
+
+  // ---- gambe pesanti con ginocchia ----
+  limbSeg(-VS * 2, -VS * 46, VS * (10 + walk * 5), -VS * 5, VS * 6, SUIT, VS * 9);
+  limbSeg(-VS * 2, -VS * 46, VS * (-11 - walk * 5), -VS * 5, -VS * 5, SUIT, VS * 9);
+  ctx.fillStyle = GLOVE;
+  ctx.beginPath(); ctx.ellipse(VS * (10 + walk * 5) + VS * 3, -VS * 2, VS * 6, VS * 3, 0, 0, TAU); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(VS * (-11 - walk * 5) + VS * 3, -VS * 2, VS * 6, VS * 3, 0, 0, TAU); ctx.fill();
+
+  // ---- tabarro frontale ----
+  ctx.fillStyle = "#0e0e14";
+  poly([[-VS * 8, -VS * 50], [VS * 8, -VS * 50], [VS * 6, -VS * 24], [-VS * 6, -VS * 24]]);
+  ctx.fill();
+
+  // ---- torso corazzato con spalle larghe ----
+  ctx.fillStyle = SUIT;
+  ctx.strokeStyle = EDGE;
+  ctx.lineWidth = VS * 1.3;
+  ctx.beginPath();
+  ctx.moveTo(-VS * 16, -VS * 86);
+  ctx.lineTo(VS * 16, -VS * 86);
+  ctx.quadraticCurveTo(VS * 14, -VS * 66, VS * 11, -VS * 50);
+  ctx.lineTo(-VS * 11, -VS * 50);
+  ctx.quadraticCurveTo(-VS * 14, -VS * 66, -VS * 16, -VS * 86);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  // trapunta della tuta
+  ctx.strokeStyle = "rgba(60,60,75,0.5)";
+  ctx.lineWidth = VS * 0.9;
+  ctx.beginPath();
+  ctx.moveTo(-VS * 9, -VS * 62); ctx.lineTo(VS * 9, -VS * 64);
+  ctx.moveTo(-VS * 10, -VS * 56); ctx.lineTo(VS * 10, -VS * 58);
+  ctx.stroke();
+  // spallacci (bassi, coperti al centro dalla gonna dell'elmo)
+  ctx.fillStyle = ARMOR;
+  ctx.strokeStyle = EDGE;
+  ctx.beginPath();
+  ctx.moveTo(-VS * 17, -VS * 84);
+  ctx.quadraticCurveTo(-VS * 10, -VS * 91.5, VS * 0, -VS * 89.5);
+  ctx.quadraticCurveTo(VS * 10, -VS * 91.5, VS * 17, -VS * 84);
+  ctx.quadraticCurveTo(VS * 8, -VS * 87, 0, -VS * 86.5);
+  ctx.quadraticCurveTo(-VS * 8, -VS * 87, -VS * 17, -VS * 84);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+
+  // ---- scatola pettorale ----
+  ctx.fillStyle = "#262630";
+  ctx.strokeStyle = EDGE;
+  ctx.fillRect(-VS * 7, -VS * 80, VS * 13, VS * 11);
+  ctx.strokeRect(-VS * 7, -VS * 80, VS * 13, VS * 11);
+  ctx.fillStyle = "#ff4b4b"; ctx.fillRect(-VS * 5.4, -VS * 78, VS * 2.2, VS * 2.2);
+  ctx.fillStyle = "#59ff8a"; ctx.fillRect(-VS * 1.8, -VS * 78, VS * 2.2, VS * 2.2);
+  ctx.fillStyle = "#7fd4ff"; ctx.fillRect(VS * 1.8, -VS * 78, VS * 2.2, VS * 2.2);
+  ctx.fillStyle = "#3d3d4a";
+  ctx.fillRect(-VS * 5.4, -VS * 74.5, VS * 9.4, VS * 1.6);
+  ctx.fillRect(-VS * 5.4, -VS * 72, VS * 6.4, VS * 1.6);
+  // cintura con fibbia
+  ctx.fillStyle = "#0b0b10";
+  ctx.fillRect(-VS * 12.5, -VS * 53, VS * 25, VS * 6);
+  ctx.fillStyle = "#3d3d4a";
+  ctx.fillRect(-VS * 3.6, -VS * 52.5, VS * 7.2, VS * 5);
+  ctx.fillStyle = "#1c1c26";
+  ctx.fillRect(-VS * 11, -VS * 52.2, VS * 4.6, VS * 4.4);
+  ctx.fillRect(VS * 6.6, -VS * 52.2, VS * 4.6, VS * 4.4);
+
+  // ---- elmo iconico ----
+  // gonna del collo, larga fino alle spalle
+  ctx.fillStyle = "#101018";
+  ctx.strokeStyle = EDGE;
+  ctx.lineWidth = VS * 1.1;
+  ctx.beginPath();
+  ctx.moveTo(-VS * 16, -VS * 85);
+  ctx.quadraticCurveTo(-VS * 14, -VS * 97, -VS * 7, -VS * 100);
+  ctx.lineTo(VS * 7, -VS * 100);
+  ctx.quadraticCurveTo(VS * 13, -VS * 97, VS * 15, -VS * 85);
+  ctx.quadraticCurveTo(VS * 0, -VS * 92, -VS * 16, -VS * 85);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  // maschera frontale grande (la cupola si ferma sopra la fronte)
+  ctx.fillStyle = "#232330";
+  ctx.strokeStyle = EDGE;
+  ctx.lineWidth = VS * 1;
+  ctx.beginPath();
+  ctx.moveTo(-VS * 2, -VS * 107.5);
+  ctx.lineTo(VS * 13.5, -VS * 106.5);
+  ctx.quadraticCurveTo(VS * 15.5, -VS * 98, VS * 12, -VS * 92.5);
+  ctx.quadraticCurveTo(VS * 9, -VS * 88.8, VS * 4, -VS * 89.2);
+  ctx.quadraticCurveTo(-VS * 1.5, -VS * 90.5, -VS * 2.5, -VS * 97);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  // cupola: calotta su cranio e nuca, bordo netto sopra la fronte
+  ctx.fillStyle = "#15151f";
+  ctx.strokeStyle = EDGE;
+  ctx.lineWidth = VS * 1.1;
+  ctx.beginPath();
+  ctx.moveTo(-VS * 13, -VS * 96);
+  ctx.bezierCurveTo(-VS * 17, -VS * 112, -VS * 8, -VS * 124.5, VS * 2, -VS * 124.5);
+  ctx.bezierCurveTo(VS * 11.5, -VS * 124.5, VS * 16, -VS * 113, VS * 13.8, -VS * 106);
+  ctx.quadraticCurveTo(VS * 6, -VS * 104, VS * 0, -VS * 106);
+  ctx.quadraticCurveTo(-VS * 6, -VS * 108, -VS * 13, -VS * 96);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  // riflesso della cupola
+  ctx.strokeStyle = "rgba(150,160,190,0.28)";
+  ctx.lineWidth = VS * 1.6;
+  ctx.beginPath();
+  ctx.moveTo(-VS * 9, -VS * 107);
+  ctx.quadraticCurveTo(-VS * 6, -VS * 119, VS * 2, -VS * 121);
+  ctx.stroke();
+  // lenti a mandorla (brillano nella fase 2)
   const p2 = v.phase2;
   if (p2) {
     const lg = 0.5 + 0.5 * Math.sin(G.time * 6);
-    ctx.fillStyle = "rgba(255,40,40," + (0.25 * lg).toFixed(2) + ")";
+    ctx.fillStyle = "rgba(255,40,40," + (0.3 * lg).toFixed(2) + ")";
     ctx.beginPath();
-    ctx.ellipse(VS * 0, -VS * 99, VS * 4.4, VS * 3.4, 0, 0, TAU);
-    ctx.ellipse(VS * 6.5, -VS * 99, VS * 4.4, VS * 3.4, 0, 0, TAU);
+    ctx.ellipse(VS * 2.5, -VS * 100, VS * 4.6, VS * 3.6, -0.15, 0, TAU);
+    ctx.ellipse(VS * 9.5, -VS * 99.5, VS * 4.4, VS * 3.4, 0.15, 0, TAU);
     ctx.fill();
   }
-  ctx.fillStyle = p2 ? "#a01a20" : "#3d1216";
-  ctx.beginPath();
-  ctx.ellipse(VS * 0, -VS * 99, VS * 2.6, VS * 2, 0, 0, TAU);
-  ctx.ellipse(VS * 6.5, -VS * 99, VS * 2.6, VS * 2, 0, 0, TAU);
+  ctx.fillStyle = p2 ? "#8e1218" : "#241014";
+  ctx.strokeStyle = "#454552";
+  ctx.lineWidth = VS * 1;
+  ctx.beginPath(); ctx.ellipse(VS * 2.5, -VS * 100.5, VS * 3.6, VS * 2.8, -0.18, 0, TAU); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(VS * 10, -VS * 100, VS * 3.4, VS * 2.7, 0.18, 0, TAU); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = "rgba(255,120,120,0.16)";
+  ctx.beginPath(); ctx.arc(VS * 1.6, -VS * 100.8, VS * 0.5, 0, TAU); ctx.arc(VS * 8.6, -VS * 100.3, VS * 0.5, 0, TAU); ctx.fill();
+  // naso triangolare
+  ctx.fillStyle = "#0c0c12";
+  poly([[VS * 4.5, -VS * 96.5], [VS * 7.5, -VS * 96.3], [VS * 6, -VS * 93.8]]);
   ctx.fill();
+  // griglia della bocca
+  ctx.fillStyle = "#16161e";
+  ctx.strokeStyle = EDGE;
+  poly([[VS * 3, -VS * 93.5], [VS * 9.5, -VS * 93.2], [VS * 8.5, -VS * 90], [VS * 4, -VS * 90.2]]);
+  ctx.fill(); ctx.stroke();
   ctx.strokeStyle = "#2c2c38";
-  ctx.lineWidth = VS * 0.9;
+  ctx.lineWidth = VS * 0.8;
   ctx.beginPath();
-  ctx.moveTo(VS * 0, -VS * 95); ctx.lineTo(VS * 6, -VS * 95);
-  ctx.moveTo(VS * 0.5, -VS * 93.2); ctx.lineTo(VS * 5.5, -VS * 93.2);
+  ctx.moveTo(VS * 4.8, -VS * 93.3); ctx.lineTo(VS * 5.1, -VS * 90.2);
+  ctx.moveTo(VS * 6.3, -VS * 93.3); ctx.lineTo(VS * 6.5, -VS * 90.1);
+  ctx.moveTo(VS * 7.8, -VS * 93.2); ctx.lineTo(VS * 7.9, -VS * 90.1);
   ctx.stroke();
 
-  // braccio e spada (rossa)
+  // ---- braccio con gomito, guanto e spada ----
   const shx = VS * 10, shy = -VS * 82;
   const hx = shx + Math.cos(v.armAng) * VS * 28;
   const hy = shy + Math.sin(v.armAng) * VS * 28;
-  ctx.strokeStyle = "#15151c";
-  ctx.lineWidth = VS * 6.5;
-  ctx.beginPath(); ctx.moveTo(shx, shy); ctx.lineTo(hx, hy); ctx.stroke();
+  limbSeg(shx, shy, hx, hy, -VS * 6, SUIT, VS * 7);
   ctx.strokeStyle = "#9aa0ad";
   ctx.lineWidth = VS * 4;
   ctx.beginPath();
@@ -1882,6 +2054,8 @@ function drawVaderChar(v, S, GY) {
   const hasBlade = v.hasBlade !== false;
   const bk = (v.bladeK !== undefined ? v.bladeK : 1) * (1 - kneel * 0.9);
   if (hasBlade && bk > 0.02) drawSaberBlade(hx, hy, v.armAng, VS * 92 * bk, "255,60,50", VS);
+  ctx.fillStyle = GLOVE;
+  ctx.beginPath(); ctx.arc(hx, hy, VS * 3.8, 0, TAU); ctx.fill();
 
   ctx.restore();
   if ((v.alpha === undefined || v.alpha > 0.3) && !(v.kneel > 0.5) && v.hasBlade !== false)
