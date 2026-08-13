@@ -1623,28 +1623,98 @@ function updateDuel(rdt) {
 }
 
 // ---------------------------------------------------------- disegno duello
+let duelReflectPass = false;
+
+const duelDust = (() => {
+  const rng = mulberry32(7777);
+  const out = [];
+  for (let i = 0; i < 34; i++) out.push({ x: rng(), y: rng(), s: 0.3 + rng() * 0.7, ph: rng() * TAU });
+  return out;
+})();
+
+const hangarStars = (() => {
+  const rng = mulberry32(24680);
+  const out = [];
+  for (let i = 0; i < 42; i++) out.push({ x: rng(), y: rng(), a: 0.25 + rng() * 0.7 });
+  return out;
+})();
+
+// il Falcon parcheggiato in lontananza, visto di profilo
+function drawFalconSilhouette(cx, cy, w) {
+  const h = w * 0.3;
+  ctx.fillStyle = "#151821";
+  ctx.strokeStyle = "#262b38";
+  ctx.lineWidth = 1;
+  // carrelli
+  ctx.fillRect(cx - w * 0.24, cy - h * 0.16, w * 0.05, h * 0.16);
+  ctx.fillRect(cx + w * 0.16, cy - h * 0.16, w * 0.05, h * 0.16);
+  // scafo lenticolare
+  ctx.beginPath();
+  ctx.ellipse(cx, cy - h * 0.5, w / 2, h * 0.38, 0, 0, TAU);
+  ctx.fill(); ctx.stroke();
+  // torretta e cockpit
+  ctx.beginPath();
+  ctx.ellipse(cx - w * 0.05, cy - h * 0.86, w * 0.1, h * 0.14, 0, Math.PI, 0);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(cx + w * 0.4, cy - h * 0.5, w * 0.08, h * 0.16, 0, 0, TAU);
+  ctx.fill();
+  // luci di posizione
+  ctx.fillStyle = "rgba(150,200,255,0.7)";
+  for (const lx of [-0.32, -0.1, 0.14, 0.34]) {
+    ctx.fillRect(cx + w * lx, cy - h * 0.5, 1.6, 1.6);
+  }
+  // bagliore dei motori in stand-by
+  ctx.fillStyle = "rgba(120,190,255," + (0.12 + 0.06 * Math.sin(G.time * 2)).toFixed(2) + ")";
+  ctx.fillRect(cx - w * 0.42, cy - h * 0.58, w * 0.1, h * 0.16);
+}
+
 function drawCorridor() {
-  ctx.fillStyle = "#0a0b10";
-  ctx.fillRect(0, 0, W, H);
   const GY = H * 0.74;
+  ctx.fillStyle = "#06070c";
+  ctx.fillRect(0, 0, W, H);
 
   // striscia d'allarme
   ctx.fillStyle = "rgba(255,45,45," + (0.22 + 0.18 * Math.sin(G.time * 4)).toFixed(2) + ")";
   ctx.fillRect(0, 0, W, H * 0.014);
 
-  // pannellature della parete
-  ctx.strokeStyle = "rgba(90,110,150,0.12)";
+  // apertura dell'hangar: stelle e Falcon in attesa
+  const ox0 = W * 0.34, ox1 = W * 0.66, oy0 = H * 0.16;
+  ctx.fillStyle = "#04050a";
+  ctx.fillRect(ox0, oy0, ox1 - ox0, GY - oy0);
+  for (const st of hangarStars) {
+    const tw = 0.6 + 0.4 * Math.sin(G.time * 1.5 + st.x * 9);
+    ctx.fillStyle = "rgba(255,255,255," + (st.a * tw * 0.8).toFixed(2) + ")";
+    ctx.fillRect(ox0 + st.x * (ox1 - ox0), oy0 + st.y * (GY - oy0) * 0.75, 1.5, 1.5);
+  }
+  drawFalconSilhouette(W * 0.5, GY - 2, (ox1 - ox0) * 0.56);
+  // cornice luminosa dell'apertura
+  for (const ex of [ox0 - 5, ox1 + 1]) {
+    const fl = 0.22 + 0.08 * Math.sin(G.time * 3 + ex);
+    const g = ctx.createLinearGradient(0, oy0, 0, GY);
+    g.addColorStop(0, "rgba(170,200,255," + (fl * 0.5).toFixed(2) + ")");
+    g.addColorStop(0.5, "rgba(170,200,255," + fl.toFixed(2) + ")");
+    g.addColorStop(1, "rgba(170,200,255," + (fl * 0.4).toFixed(2) + ")");
+    ctx.fillStyle = g;
+    ctx.fillRect(ex, oy0, 4, GY - oy0);
+  }
+  ctx.fillStyle = "rgba(170,200,255,0.16)";
+  ctx.fillRect(ox0 - 5, oy0 - 4, ox1 - ox0 + 10, 4);
+
+  // pannellature delle pareti laterali
+  ctx.strokeStyle = "rgba(90,110,150,0.1)";
   ctx.lineWidth = 1;
   for (let i = 0; i <= 8; i++) {
     const px = (W / 8) * i;
+    if (px > ox0 - 10 && px < ox1 + 10) continue;
     ctx.beginPath(); ctx.moveTo(px, H * 0.06); ctx.lineTo(px, GY); ctx.stroke();
   }
-  ctx.beginPath(); ctx.moveTo(0, H * 0.3); ctx.lineTo(W, H * 0.3); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, H * 0.3); ctx.lineTo(ox0 - 5, H * 0.3); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(ox1 + 5, H * 0.3); ctx.lineTo(W, H * 0.3); ctx.stroke();
 
-  // colonne di luce
-  for (let i = 0; i < 6; i++) {
-    const cx = W * (0.09 + i * 0.165);
-    const fl = 0.1 + 0.05 * Math.sin(G.time * 3 + i * 2);
+  // colonne di luce laterali
+  for (const cx of [W * 0.1, W * 0.24, W * 0.76, W * 0.9]) {
+    const fl = 0.09 + 0.05 * Math.sin(G.time * 3 + cx);
     const g = ctx.createLinearGradient(0, H * 0.08, 0, GY);
     g.addColorStop(0, "rgba(170,200,255," + (fl * 0.6).toFixed(2) + ")");
     g.addColorStop(0.5, "rgba(170,200,255," + fl.toFixed(2) + ")");
@@ -1653,8 +1723,16 @@ function drawCorridor() {
     ctx.fillRect(cx - 4, H * 0.08, 8, GY - H * 0.08);
   }
 
-  // pavimento
-  ctx.fillStyle = "#07080c";
+  // pulviscolo nei fasci di luce
+  for (const m of duelDust) {
+    const my = H * 0.08 + ((m.y + G.time * 0.008 * m.s) % 1) * (GY - H * 0.1);
+    const mx = m.x * W + Math.sin(G.time * 0.5 + m.ph) * 6;
+    ctx.fillStyle = "rgba(200,220,255," + (0.04 + 0.05 * (0.5 + 0.5 * Math.sin(G.time + m.ph))).toFixed(3) + ")";
+    ctx.fillRect(mx, my, 1.5, 1.5);
+  }
+
+  // pavimento nero lucido
+  ctx.fillStyle = "#04050a";
   ctx.fillRect(0, GY, W, H - GY);
   ctx.strokeStyle = "rgba(120,150,200,0.3)";
   ctx.lineWidth = 1.5;
@@ -1738,7 +1816,7 @@ function drawLukeChar(l, S, GY) {
     ctx.translate(0, S * 50);
   }
   ctx.scale(l.face, 1);
-  if (l.hurtT > 0 && Math.sin(G.time * 40) > 0) ctx.globalAlpha = 0.55;
+  if (l.hurtT > 0 && Math.sin(G.time * 40) > 0) ctx.globalAlpha *= 0.55;
   const airborne = (l.airY || 0) < -1;
   const walk = !airborne && l.moving > 0 ? Math.sin(l.walkT * 11) : 0;
   ctx.lineJoin = "round";
@@ -1861,14 +1939,14 @@ function drawLukeChar(l, S, GY) {
   ctx.beginPath(); ctx.arc(bhx, bhy, S * 3, 0, TAU); ctx.fill();
 
   ctx.restore();
-  if ((l.airY || 0) > -S * 20)
+  if (!duelReflectPass && (l.airY || 0) > -S * 20)
     drawSaberGroundGlow(l.x + l.face * Math.cos(l.armAng) * S * 60, GY, "80,255,110");
 }
 
 function drawVaderChar(v, S, GY) {
   ctx.save();
   ctx.translate(v.x, GY);
-  ctx.globalAlpha = v.alpha !== undefined ? v.alpha : 1;
+  ctx.globalAlpha *= v.alpha !== undefined ? v.alpha : 1;
   ctx.scale(v.face, 1);
   if (v.hurtT > 0 && Math.sin(G.time * 40) > 0) ctx.globalAlpha *= 0.6;
   const kneel = v.kneel || 0;
@@ -2006,11 +2084,11 @@ function drawVaderChar(v, S, GY) {
   ctx.moveTo(-VS * 9, -VS * 107);
   ctx.quadraticCurveTo(-VS * 6, -VS * 119, VS * 2, -VS * 121);
   ctx.stroke();
-  // lenti a mandorla (brillano nella fase 2)
+  // lenti a mandorla (sempre accese, brillano di piu' nella fase 2)
   const p2 = v.phase2;
-  if (p2) {
-    const lg = 0.5 + 0.5 * Math.sin(G.time * 6);
-    ctx.fillStyle = "rgba(255,40,40," + (0.3 * lg).toFixed(2) + ")";
+  {
+    const lg = p2 ? 0.5 + 0.5 * Math.sin(G.time * 6) : 0.4 + 0.15 * Math.sin(G.time * 2.5);
+    ctx.fillStyle = "rgba(255,40,40," + ((p2 ? 0.3 : 0.13) * lg).toFixed(3) + ")";
     ctx.beginPath();
     ctx.ellipse(VS * 2.5, -VS * 100, VS * 4.6, VS * 3.6, -0.15, 0, TAU);
     ctx.ellipse(VS * 9.5, -VS * 99.5, VS * 4.4, VS * 3.4, 0.15, 0, TAU);
@@ -2058,7 +2136,7 @@ function drawVaderChar(v, S, GY) {
   ctx.beginPath(); ctx.arc(hx, hy, VS * 3.8, 0, TAU); ctx.fill();
 
   ctx.restore();
-  if ((v.alpha === undefined || v.alpha > 0.3) && !(v.kneel > 0.5) && v.hasBlade !== false)
+  if (!duelReflectPass && (v.alpha === undefined || v.alpha > 0.3) && !(v.kneel > 0.5) && v.hasBlade !== false)
     drawSaberGroundGlow(v.x + v.face * Math.cos(v.armAng) * S * 62, GY, "255,60,50");
 }
 
@@ -2067,6 +2145,24 @@ function drawDuel() {
   const S = MINWH / 420, GY = H * 0.74;
 
   drawCorridor();
+
+  // riflessi sul pavimento lucido (duellanti capovolti, in dissolvenza)
+  duelReflectPass = true;
+  ctx.save();
+  ctx.translate(0, 2 * GY);
+  ctx.scale(1, -1);
+  ctx.globalAlpha = 0.16;
+  if (d.saber) drawFlyingSaber(d.saber, S, GY);
+  drawVaderChar(v, S, GY);
+  drawLukeChar(l, S, GY);
+  ctx.restore();
+  ctx.globalAlpha = 1;
+  duelReflectPass = false;
+  const rg = ctx.createLinearGradient(0, GY, 0, H);
+  rg.addColorStop(0, "rgba(4,5,10,0.25)");
+  rg.addColorStop(1, "rgba(4,5,10,0.95)");
+  ctx.fillStyle = rg;
+  ctx.fillRect(0, GY, W, H - GY);
 
   // vignetta rossa quando il lato oscuro si risveglia
   if (v.phase2 || d.phase2Cine > 0) {
@@ -2093,6 +2189,20 @@ function drawDuel() {
 
   drawVaderChar(v, S, GY);
   drawLukeChar(l, S, GY);
+
+  // alone delle lame nell'aria
+  const hazes = [[bladePts(l, S, GY, false), "80,255,110", l.bladeK]];
+  if (v.hasBlade !== false && v.bladeK > 0.05) hazes.push([bladePts(v, S, GY, true), "255,60,50", 1]);
+  for (const [bp, col, k] of hazes) {
+    if (!k || k < 0.05) continue;
+    const mx = (bp.hx + bp.tx) / 2, my = (bp.hy + bp.ty) / 2;
+    const hg = ctx.createRadialGradient(mx, my, 0, mx, my, S * 170);
+    hg.addColorStop(0, "rgba(" + col + ",0.1)");
+    hg.addColorStop(1, "rgba(" + col + ",0)");
+    ctx.fillStyle = hg;
+    ctx.beginPath(); ctx.arc(mx, my, S * 170, 0, TAU); ctx.fill();
+  }
+
   drawParts(d.sparks);
 
   // testi fluttuanti
