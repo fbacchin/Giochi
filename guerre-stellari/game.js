@@ -138,6 +138,7 @@ const AudioFX = {
   throwW()     { this.noise(0.5, 0.2, 2400, 700); this.blip(300, 170, 0.5, "square", 0.08); },
   sting()      { this.blip(98, 62, 0.9, "sawtooth", 0.28); this.blip(147, 96, 1.1, "sawtooth", 0.18); },
   land()       { this.blip(150, 70, 0.12, "triangle", 0.16); },
+  hitTick()    { this.blip(1100, 600, 0.05, "square", 0.09); },
   wave()       { this.blip(440, 660, 0.18, "square", 0.14); },
   bigBoom() {
     this.noise(2.8, 0.8, 3200, 60);
@@ -2380,6 +2381,10 @@ function initTrench() {
     warnObs: null,
     slowT: 0,
     hintT: 3.6,
+    aimTarget: null,
+    aimLocked: false,
+    hitMarkT: 0,
+    floats3: [],
   };
   G.trenchStartScore = G.score;
   showYoda(3.2);
@@ -2478,7 +2483,7 @@ function updateTrench(dt) {
   const spd = t.slowT > 0 ? t.speed * 0.55 : t.speed;
   if (t.hintT > 0) {
     t.hintT -= dt;
-    if (t.hintT <= 0) showMsg("Schiva le sporgenze sulle pareti e abbatti i caccia in arrivo!", 3.5);
+    if (t.hintT <= 0) showMsg("Il quadrato aggancia i bersagli: allinea la guida laser e fai fuoco!", 3.5);
   }
   t.camX = sh.x * 0.5;
   t.camY = sh.y * 0.5 + 0.55;
@@ -2656,6 +2661,8 @@ function updateTrench(dt) {
           t.ties.splice(j, 1);
           dead = true;
           G.score += 200;
+          t.hitMarkT = 0.18;
+          t.floats3.push({ x: e.x, y: e.y - 0.08, z: e.z, txt: "+200", col: "#ffe9c9", t: 0 });
           spawn3Burst(t, e.x, e.y, e.z, 20, EXPL_COLS);
           AudioFX.boom();
           break;
@@ -2668,12 +2675,16 @@ function updateTrench(dt) {
         if (Math.abs(l.z - tur.z) < 1.6 && Math.abs(l.x - tur.x) < 0.22 && Math.abs(l.y - tur.y) < 0.2) {
           tur.hp--;
           dead = true;
+          t.hitMarkT = 0.18;
           spawn3Burst(t, tur.x, tur.y, tur.z, 6, ["#ffd98a", "#ffffff"]);
           if (tur.hp <= 0) {
             t.turrets.splice(j, 1);
             G.score += 150;
+            t.floats3.push({ x: tur.x, y: tur.y - 0.08, z: tur.z, txt: "+150", col: "#ffe9c9", t: 0 });
             spawn3Burst(t, tur.x, tur.y, tur.z, 18, EXPL_COLS);
             AudioFX.boom();
+          } else {
+            AudioFX.hitTick();
           }
           break;
         }
@@ -2709,6 +2720,7 @@ function updateTrench(dt) {
       if (Math.abs(tp.z - tur.z) < 1.6 && Math.abs(tp.x - tur.x) < 0.4 && Math.abs(tp.y - tur.y) < 0.4) {
         t.turrets.splice(j, 1);
         G.score += 150;
+        t.floats3.push({ x: tur.x, y: tur.y - 0.08, z: tur.z, txt: "+150", col: "#ffe9c9", t: 0 });
         spawn3Burst(t, tur.x, tur.y, tur.z, 22, EXPL_COLS);
         AudioFX.boom();
         t.torps.splice(i, 1);
@@ -2722,6 +2734,7 @@ function updateTrench(dt) {
         if (Math.abs(tp.z - e.z) < 1.7 && Math.abs(tp.x - e.x) < 0.4 && Math.abs(tp.y - e.y) < 0.4) {
           t.ties.splice(j, 1);
           G.score += 200;
+          t.floats3.push({ x: e.x, y: e.y - 0.08, z: e.z, txt: "+200", col: "#ffe9c9", t: 0 });
           spawn3Burst(t, e.x, e.y, e.z, 22, EXPL_COLS);
           AudioFX.boom();
           t.torps.splice(i, 1);
@@ -2785,6 +2798,30 @@ function updateTrench(dt) {
   const wasLocked = t.locked;
   t.locked = !!(t.port && t.port.z < 18 && Math.abs(sh.x - t.port.x) < 0.42);
   if (t.locked && !wasLocked) AudioFX.lock();
+
+  // aggancio del bersaglio: il TIE o la torretta più vicini davanti a te
+  t.aimTarget = null;
+  let aimZ = Infinity;
+  for (const e of t.ties) {
+    if (e.z > 2.5 && e.z < aimZ && Math.abs(e.x - sh.x) < 0.7 && Math.abs(e.y - sh.y) < 0.55) {
+      aimZ = e.z; t.aimTarget = { kind: "tie", o: e };
+    }
+  }
+  for (const tur of t.turrets) {
+    if (tur.z > 2.5 && tur.z < aimZ && Math.abs(tur.x - sh.x) < 0.7 && Math.abs(tur.y - sh.y) < 0.55) {
+      aimZ = tur.z; t.aimTarget = { kind: "tur", o: tur };
+    }
+  }
+  t.aimLocked = !!(t.aimTarget &&
+    Math.abs(t.aimTarget.o.x - sh.x) < 0.18 && Math.abs(t.aimTarget.o.y - sh.y) < 0.15);
+  t.hitMarkT = Math.max(0, t.hitMarkT - dt);
+
+  // punteggi fluttuanti nel mondo
+  for (let i = t.floats3.length - 1; i >= 0; i--) {
+    const f = t.floats3[i];
+    f.t += dt; f.z -= spd * dt; f.y += dt * 0.2;
+    if (f.t > 0.95 || f.z < -0.5) t.floats3.splice(i, 1);
+  }
 
   // particelle 3D
   for (let i = t.parts3.length - 1; i >= 0; i--) {
@@ -2930,6 +2967,12 @@ function drawTrench(noHud) {
   for (const l of t.lasers) items.push({ z: l.z, fn: () => drawTrenchBolt(l, "rgba(255,70,60,0.95)", "#ffe2df") });
   for (const tp of t.torps) items.push({ z: tp.z, fn: () => drawTorpedo(tp) });
   for (const p of t.parts3) items.push({ z: p.z, fn: () => drawPart3(p) });
+  for (const f of t.floats3) items.push({ z: f.z, fn: () => {
+    const p = proj(f.x, f.y, f.z);
+    ctx.globalAlpha = clamp(1 - f.t / 0.95, 0, 1);
+    text(f.txt, p.x, p.y, Math.min(26, Math.max(13, p.s * 0.1)), f.col, "center", true);
+    ctx.globalAlpha = 1;
+  } });
   items.sort((a, b) => b.z - a.z);
   for (const it of items) it.fn();
 
@@ -2954,7 +2997,60 @@ function drawTrench(noHud) {
   const flick = sh.inv > 0;
   drawXWingBack(sp2.x, sp2.y, MINWH * 0.085, clamp(-sh.vx * 0.55, -0.6, 0.6), flick, G.time);
 
-  // reticolo di puntamento
+  if (!noHud) {
+    // guida laser: dove convergono i tuoi colpi
+    const gA = proj(sh.x, sh.y, 1.4), gB = proj(sh.x, sh.y, 40);
+    ctx.setLineDash([5, 9]);
+    ctx.strokeStyle = t.aimLocked ? "rgba(89,255,138,0.45)" : "rgba(140,190,255,0.22)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(gA.x, gA.y); ctx.lineTo(gB.x, gB.y); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = t.aimLocked ? "#59ff8a" : "rgba(140,190,255,0.55)";
+    ctx.beginPath(); ctx.arc(gB.x, gB.y, 2.6, 0, TAU); ctx.fill();
+
+    // quadrato di mira sul bersaglio agganciato
+    if (t.aimTarget) {
+      const o = t.aimTarget.o;
+      const p = proj(o.x, o.y, o.z);
+      const s = clamp(p.s * (t.aimTarget.kind === "tie" ? 0.16 : 0.12), 15, 80);
+      const col = t.aimLocked ? "#59ff8a" : "#ffe81f";
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 2;
+      if (t.aimLocked) {
+        ctx.strokeRect(p.x - s, p.y - s, s * 2, s * 2);
+        text("FUOCO!", p.x, p.y - s - 12, 13, col, "center", true);
+      } else {
+        for (const [mx, my] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+          ctx.beginPath();
+          ctx.moveTo(p.x + mx * s, p.y + my * s * 0.5);
+          ctx.lineTo(p.x + mx * s, p.y + my * s);
+          ctx.lineTo(p.x + mx * s * 0.5, p.y + my * s);
+          ctx.stroke();
+        }
+      }
+      // tacche di vita della torretta
+      if (t.aimTarget.kind === "tur") {
+        for (let i = 0; i < 2; i++) {
+          ctx.fillStyle = i < o.hp ? col : "rgba(120,130,160,0.3)";
+          ctx.fillRect(p.x - 11 + i * 12, p.y + s + 6, 10, 4);
+        }
+      }
+      // segno di impatto quando colpisci
+      if (t.hitMarkT > 0) {
+        ctx.globalAlpha = t.hitMarkT / 0.18;
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 2.5;
+        const hs = s * 0.5;
+        ctx.beginPath();
+        ctx.moveTo(p.x - hs, p.y - hs); ctx.lineTo(p.x + hs, p.y + hs);
+        ctx.moveTo(p.x + hs, p.y - hs); ctx.lineTo(p.x - hs, p.y + hs);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+    }
+  }
+
+  // reticolo di puntamento del condotto
   if (t.port) drawTargeting();
 
   if (!noHud) {
