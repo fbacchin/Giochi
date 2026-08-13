@@ -59,6 +59,24 @@ function text(str, x, y, size, color, align, bold) {
 }
 
 const fmtScore = (n) => String(Math.max(0, Math.floor(n))).padStart(6, "0");
+const NARROW = () => W < 700; // schermi stretti (telefono in verticale)
+
+// testo con a capo automatico dentro maxW; ritorna il numero di righe
+function textWrap(str, x, y, size, color, align, bold, maxW, lineH) {
+  ctx.font = (bold ? "bold " : "") + size + "px 'Courier New', monospace";
+  const words = String(str).split(" ");
+  const lines = [];
+  let cur = "";
+  for (const w of words) {
+    const trial = cur ? cur + " " + w : w;
+    if (ctx.measureText(trial).width > maxW && cur) { lines.push(cur); cur = w; }
+    else cur = trial;
+  }
+  if (cur) lines.push(cur);
+  const lh = lineH || size * 1.3;
+  lines.forEach((ln, i) => text(ln, x, y + i * lh, size, color, align, bold));
+  return lines.length;
+}
 
 // ---------------------------------------------------------- audio (WebAudio sintetizzato)
 const AudioFX = {
@@ -1011,7 +1029,7 @@ function drawSpace() {
   drawParts(sp.parts);
   drawHUD();
   text((sp.shipType === "falcon" ? "MILLENNIUM FALCON" : "X-WING") + " · ONDATA " + sp.wave + "/2",
-       W / 2, 26, 15, "#8fa2c5");
+       W / 2, NARROW() ? 60 : 26, NARROW() ? 13 : 15, "#8fa2c5");
 }
 
 // ============================================================
@@ -1044,10 +1062,10 @@ function drawFalconIntro() {
   drawFalconTop(0, 0, 120);
   ctx.restore();
 
-  text("IL MILLENNIUM FALCON", W / 2, H * 0.24, Math.max(24, MINWH * 0.05), "#ffe81f", "center", true);
-  text("SI UNISCE ALLA BATTAGLIA!", W / 2, H * 0.32, Math.max(18, MINWH * 0.036), "#ffe81f", "center", true);
+  text("IL MILLENNIUM FALCON", W / 2, H * 0.22, Math.max(20, Math.min(MINWH * 0.05, W * 0.075)), "#ffe81f", "center", true);
+  text("SI UNISCE ALLA BATTAGLIA!", W / 2, H * 0.29, Math.max(15, Math.min(MINWH * 0.036, W * 0.055)), "#ffe81f", "center", true);
   if (t > 1)
-    text("Han ti lascia i comandi: quadrilaser a rosata e scudi potenziati!", W / 2, H * 0.4, Math.max(13, MINWH * 0.022), "#c5cde0");
+    textWrap("Han ti lascia i comandi: quadrilaser a rosata e scudi potenziati!", W / 2, H * 0.37, Math.max(12, Math.min(MINWH * 0.022, W * 0.035)), "#c5cde0", "center", false, W * 0.9);
   text("INVIO per continuare", W / 2, H - 20, 11, "#4d5670");
 }
 
@@ -1079,9 +1097,9 @@ function drawDuelIntro() {
   const vx = lerp(W * 1.12, W * 0.7, ek);
   drawVaderChar({ x: vx, face: -1, armAng: -0.55, walkT: t * 6, hurtT: 0, staggerT: 0, kneel: 0, alpha: 1, bladeK: 0, hasBlade: true, state: "approach" }, S, GY);
 
-  text("Atterri nella Morte Nera per sabotare il raggio traente…", W / 2, H * 0.2, Math.max(13, MINWH * 0.024), "#c5cde0");
+  textWrap("Atterri nella Morte Nera per sabotare il raggio traente…", W / 2, H * 0.18, Math.max(12, Math.min(MINWH * 0.024, W * 0.036)), "#c5cde0", "center", false, W * 0.9);
   if (t > 1.6)
-    text("DARTH VADER TI SBARRA LA STRADA", W / 2, H * 0.29, Math.max(20, MINWH * 0.04), "#ff5c5c", "center", true);
+    textWrap("DARTH VADER TI SBARRA LA STRADA", W / 2, H * 0.29, Math.max(17, Math.min(MINWH * 0.04, W * 0.06)), "#ff5c5c", "center", true, W * 0.94);
   text("INVIO per continuare", W / 2, H - 20, 11, "#4d5670");
 }
 
@@ -2227,7 +2245,8 @@ function drawDuel() {
     ctx.fillRect(W - 18 - (i + 1) * 22, 34, 18, 9);
   }
   ctx.globalAlpha = 1;
-  text("PUNTI  " + fmtScore(G.score), W / 2, 24, 13, "#8fa2c5");
+  if (NARROW()) text("PUNTI  " + fmtScore(G.score), W / 2, H - 14, 13, "#8fa2c5");
+  else text("PUNTI  " + fmtScore(G.score), W / 2, 24, 13, "#8fa2c5");
 
   // incrocio di lame: barra di contesa
   if (d.lock) {
@@ -2253,7 +2272,7 @@ function drawDuel() {
 
   if (d.introT > 0 && d.introT < 1.3) {
     text("DUELLO!", W / 2, H * 0.3, Math.max(30, MINWH * 0.07), "#ffe81f", "center", true);
-    text("SPAZIO attacco · SU salto (e SPAZIO in volo: colpo dall'alto) · GIÙ/S parata", W / 2, H * 0.4, Math.max(12, MINWH * 0.019), "#c5cde0");
+    textWrap("SPAZIO attacco · SU salto (e SPAZIO in volo: colpo dall'alto) · GIÙ/S parata", W / 2, H * 0.4, Math.max(11, Math.min(MINWH * 0.019, W * 0.03)), "#c5cde0", "center", false, W * 0.9);
   }
   if (d.overT > 0.4)
     text("La via è libera: corri al tuo caccia!", W / 2, H * 0.3, Math.max(15, MINWH * 0.028), "#ffe81f", "center", true);
@@ -3277,8 +3296,8 @@ function drawTrenchHUD() {
   // distanza dal condotto — in alto al centro, ben visibile
   const rem = Math.max(0, t.portAt - t.dist);
   const km = rem / t.firstPortAt * 6.2;
-  const fs = Math.max(22, MINWH * 0.036);
-  const ty = 40 + fs * 0.6;
+  const fs = Math.max(20, Math.min(MINWH * 0.036, W * 0.05));
+  const ty = (NARROW() ? 62 : 40) + fs * 0.6;
   if (t.port) {
     if (Math.sin(G.time * 8) > -0.2)
       text("CONDOTTO IN VISTA!", W / 2, ty, fs, "#ffb347", "center", true);
@@ -3527,7 +3546,7 @@ function drawGameOver() {
   drawStars(0, 0.3);
 
   text("GAME OVER", W / 2, H * 0.3, Math.max(34, MINWH * 0.075), "#ff5c5c", "center", true);
-  text(G.overReason, W / 2, H * 0.41, Math.max(13, MINWH * 0.022), "#c5cde0");
+  textWrap(G.overReason, W / 2, H * 0.41, Math.max(13, Math.min(MINWH * 0.022, W * 0.036)), "#c5cde0", "center", false, W * 0.92);
   text("PUNTEGGIO  " + fmtScore(G.score), W / 2, H * 0.52, Math.max(15, MINWH * 0.026), "#ffffff");
   text("RECORD  " + fmtScore(G.hi), W / 2, H * 0.58, 13, "#8fa2c5");
   if (Math.sin(G.time * 4) > -0.3)
@@ -3582,7 +3601,8 @@ function drawMsg() {
   if (G.msgT <= 0 || !G.msg) return;
   const a = clamp(G.msgT / 0.4, 0, 1);
   ctx.globalAlpha = a;
-  text(G.msg, W / 2, H * 0.3, Math.max(15, MINWH * 0.027), "#ffe81f", "center", true);
+  const fs = Math.max(14, Math.min(MINWH * 0.027, W * 0.042));
+  textWrap(G.msg, W / 2, H * 0.28, fs, "#ffe81f", "center", true, W * 0.92);
   ctx.globalAlpha = 1;
 }
 
