@@ -186,7 +186,8 @@ const AudioFX = {
 const keys = {};
 const pressedCodes = new Set();
 let touchTapped = false;
-let hasTouch = false;
+let hasTouch = (typeof navigator !== "undefined" && (navigator.maxTouchPoints || 0) > 0) ||
+  (typeof window !== "undefined" && "ontouchstart" in window);
 
 const GAME_KEYS = ["Space", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"];
 
@@ -202,7 +203,7 @@ window.addEventListener("keydown", (e) => {
 window.addEventListener("keyup", (e) => { keys[e.code] = false; });
 window.addEventListener("blur", () => {
   for (const k in keys) keys[k] = false;
-  if (G.screen === "space" || G.screen === "trench") G.paused = true;
+  if (isPlayScreen()) G.paused = true;
 });
 
 const popKey = (code) => (pressedCodes.has(code) ? (pressedCodes.delete(code), true) : false);
@@ -216,28 +217,69 @@ const anyStartPressed = () => {
 const touchState = { moveId: null, mx: 0, my: 0, fireId: null, torpId: null };
 const fireBtn = () => ({ x: W - 74, y: H - 88, r: 46 });
 const torpBtn = () => ({ x: W - 74, y: H - 205, r: 40 });
+const jumpBtn = () => (NARROW()
+  ? { x: 82, y: H - 92, r: 40 }
+  : { x: W - 160, y: H - 172, r: 38 });
+const pauseBtn = () => ({ x: 34, y: 84, r: 21 });
+const audioBtn = () => ({ x: 34, y: 134, r: 21 });
+const menuBtn = () => ({ x: W / 2, y: H * 0.88, r: 38 });
 
 function inCircle(x, y, c) { return dist2(x, y, c.x, c.y) < c.r * c.r; }
+
+// schermate in cui un tocco qualsiasi equivale a INVIO
+const isMenuScreen = () => G.paused || G.screen === "title" || G.screen === "crawl" ||
+  G.screen === "falconIntro" || G.screen === "duelIntro" ||
+  G.screen === "victory" || G.screen === "gameover";
+const isPlayScreen = () => G.screen === "space" || G.screen === "trench" || G.screen === "duel";
+
+function drawTouchButton(b, label, color, size, alpha) {
+  ctx.globalAlpha = alpha === undefined ? 0.4 : alpha;
+  ctx.fillStyle = "rgba(4,6,12,0.35)";
+  ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, TAU); ctx.fill();
+  ctx.strokeStyle = color; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, TAU); ctx.stroke();
+  text(label, b.x, b.y, size, color, "center", true);
+  ctx.globalAlpha = 1;
+}
+
+// pausa e audio: sempre raggiungibili col pollice sinistro
+function drawServiceButtons() {
+  if (!hasTouch || !isPlayScreen()) return;
+  drawTouchButton(pauseBtn(), "II", "#8fa2c5", 15);
+  drawTouchButton(audioBtn(), AudioFX.muted ? "♪✕" : "♪", "#8fa2c5", 14);
+}
 
 canvas.addEventListener("touchstart", (e) => {
   e.preventDefault();
   hasTouch = true;
   AudioFX.init();
-  if (G.paused || G.screen === "title" || G.screen === "crawl" ||
-      G.screen === "victory" || G.screen === "gameover") {
-    touchTapped = true;
-  }
   for (const t of e.changedTouches) {
-    if (inCircle(t.clientX, t.clientY, fireBtn())) {
+    const x = t.clientX, y = t.clientY;
+    // pulsanti di servizio (pausa / audio / menu)
+    if ((isPlayScreen() || G.paused) && inCircle(x, y, pauseBtn())) { G.paused = !G.paused; continue; }
+    if ((isPlayScreen() || G.paused) && inCircle(x, y, audioBtn())) { AudioFX.setMuted(!AudioFX.muted); continue; }
+    if ((G.paused || G.screen === "gameover") && inCircle(x, y, menuBtn())) {
+      G.paused = false;
+      pressedCodes.add("Escape");
+      continue;
+    }
+    // nelle schermate di menu un tocco qualsiasi vale INVIO
+    if (isMenuScreen()) { touchTapped = true; continue; }
+    if (inCircle(x, y, fireBtn())) {
       touchState.fireId = t.identifier;
       if (G.screen === "duel") pressedCodes.add("Space"); // tap = fendente / martella nei lock
-    } else if ((G.screen === "trench" || G.screen === "duel") && inCircle(t.clientX, t.clientY, torpBtn())) {
+    } else if ((G.screen === "trench" || G.screen === "duel") && inCircle(x, y, torpBtn())) {
       touchState.torpId = t.identifier;
       if (G.screen === "trench") pressedCodes.add("KeyX");
-    } else if (t.clientX < W * 0.62 && touchState.moveId === null) {
+    } else if (G.screen === "duel" && inCircle(x, y, jumpBtn())) {
+      pressedCodes.add("ArrowUp");
+    } else if (x < W * 0.62 && touchState.moveId === null) {
       touchState.moveId = t.identifier;
-      touchState.mx = t.clientX; touchState.my = t.clientY;
-    } else touchState.fireId = t.identifier;
+      touchState.mx = x; touchState.my = y;
+    } else {
+      touchState.fireId = t.identifier;
+      if (G.screen === "duel") pressedCodes.add("Space");
+    }
   }
 }, { passive: false });
 
@@ -267,10 +309,7 @@ canvas.addEventListener("touchcancel", touchEnd, { passive: false });
 // Un click del mouse equivale a INVIO nelle schermate di menu (e sblocca l'audio).
 canvas.addEventListener("mousedown", () => {
   AudioFX.init();
-  if (G.paused || G.screen === "title" || G.screen === "crawl" ||
-      G.screen === "victory" || G.screen === "gameover") {
-    touchTapped = true;
-  }
+  if (isMenuScreen()) touchTapped = true;
 });
 
 function onTouchDrag(dx, dy) {
@@ -1066,7 +1105,7 @@ function drawFalconIntro() {
   text("SI UNISCE ALLA BATTAGLIA!", W / 2, H * 0.29, Math.max(15, Math.min(MINWH * 0.036, W * 0.055)), "#ffe81f", "center", true);
   if (t > 1)
     textWrap("Han ti lascia i comandi: quadrilaser a rosata e scudi potenziati!", W / 2, H * 0.37, Math.max(12, Math.min(MINWH * 0.022, W * 0.035)), "#c5cde0", "center", false, W * 0.9);
-  text("INVIO per continuare", W / 2, H - 20, 11, "#4d5670");
+  text(hasTouch ? "tocca per continuare" : "INVIO per continuare", W / 2, H - 20, 11, "#4d5670");
 }
 
 // ============================================================
@@ -1100,7 +1139,7 @@ function drawDuelIntro() {
   textWrap("Atterri nella Morte Nera per sabotare il raggio traente…", W / 2, H * 0.18, Math.max(12, Math.min(MINWH * 0.024, W * 0.036)), "#c5cde0", "center", false, W * 0.9);
   if (t > 1.6)
     textWrap("DARTH VADER TI SBARRA LA STRADA", W / 2, H * 0.29, Math.max(17, Math.min(MINWH * 0.04, W * 0.06)), "#ff5c5c", "center", true, W * 0.94);
-  text("INVIO per continuare", W / 2, H - 20, 11, "#4d5670");
+  text(hasTouch ? "tocca per continuare" : "INVIO per continuare", W / 2, H - 20, 11, "#4d5670");
 }
 
 // ============================================================
@@ -2017,7 +2056,10 @@ function drawDuel() {
   if (d.introT > 0 && d.introT < 1.3) {
     text("DUELLO!", W / 2, H * 0.28, Math.max(30, MINWH * 0.07), "#ffe81f", "center", true);
     textWrap("Svuota la barra rossa di VADER: colpiscilo quando non para!", W / 2, H * 0.37, Math.max(13, Math.min(MINWH * 0.024, W * 0.038)), "#ffe81f", "center", true, W * 0.9);
-    textWrap("SPAZIO attacco · SU salto (e SPAZIO in volo: colpo dall'alto) · GIÙ/S parata", W / 2, H * 0.45, Math.max(11, Math.min(MINWH * 0.019, W * 0.03)), "#c5cde0", "center", false, W * 0.9);
+    textWrap(hasTouch
+      ? "ATTACCO colpisce · SALTO per saltare (e ATTACCO in volo: colpo dall'alto) · PARATA per parare"
+      : "SPAZIO attacco · SU salto (e SPAZIO in volo: colpo dall'alto) · GIÙ/S parata",
+      W / 2, H * 0.45, Math.max(11, Math.min(MINWH * 0.019, W * 0.03)), "#c5cde0", "center", false, W * 0.9);
   }
   if (d.overT > 0.4)
     text("La via è libera: corri al tuo caccia!", W / 2, H * 0.3, Math.max(15, MINWH * 0.028), "#ffe81f", "center", true);
@@ -2032,16 +2074,10 @@ function drawDuel() {
 
   // pulsanti touch
   if (hasTouch) {
-    const fb = fireBtn(), tb = torpBtn();
-    ctx.globalAlpha = 0.35;
-    ctx.strokeStyle = "#ff8c85"; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(fb.x, fb.y, fb.r, 0, TAU); ctx.stroke();
-    text("ATTACCO", fb.x, fb.y, 12, "#ff8c85");
-    ctx.strokeStyle = "#7fd4ff";
-    ctx.beginPath(); ctx.arc(tb.x, tb.y, tb.r, 0, TAU); ctx.stroke();
-    text("PARATA", tb.x, tb.y, 12, "#7fd4ff");
-    ctx.globalAlpha = 1;
-    text("trascina in su = salto", W * 0.3, H - 16, 10, "#4d5670");
+    drawTouchButton(fireBtn(), "ATTACCO", "#ff8c85", 12);
+    drawTouchButton(torpBtn(), "PARATA", "#7fd4ff", 12);
+    drawTouchButton(jumpBtn(), "SALTO", "#bfe6a8", 12);
+    drawServiceButtons();
   }
 }
 
@@ -2276,7 +2312,9 @@ function updateTrench(dt) {
   // avviso condotto
   if (!t.portWarned && t.portAt - t.dist < 70) {
     t.portWarned = true;
-    showMsg("CONDOTTO DI SCARICO IN AVVICINAMENTO — SILURI PRONTI (X)", 3);
+    showMsg(hasTouch
+      ? "CONDOTTO DI SCARICO IN AVVICINAMENTO — PREMI SILURO!"
+      : "CONDOTTO DI SCARICO IN AVVICINAMENTO — SILURI PRONTI (X)", 3);
     AudioFX.lock();
   }
 
@@ -3027,7 +3065,8 @@ function drawTargeting() {
     ctx.lineTo(p.x + mx * s * gapK, p.y + my * s);
     ctx.stroke();
   }
-  text(t.locked ? "AGGANCIATO — FUOCO! (X)" : "ALLINEATI AL CONDOTTO", p.x, p.y - s - 16, 13, col, "center", true);
+  text(t.locked ? (hasTouch ? "AGGANCIATO — SILURO!" : "AGGANCIATO — FUOCO! (X)") : "ALLINEATI AL CONDOTTO",
+       p.x, p.y - s - 16, 13, col, "center", true);
   const dist = Math.max(0, t.port.z).toFixed(0);
   text(dist, p.x, p.y + s + 14, 12, col);
 }
@@ -3191,14 +3230,24 @@ function drawTitle() {
   text("MORTE NERA", W / 2, ty + MINWH * 0.085, Math.max(38, MINWH * 0.085), "#ffe81f", "center", true);
 
   const cy = H * 0.62;
-  const fs = Math.max(12, MINWH * 0.019);
+  const fs = Math.max(12, Math.min(MINWH * 0.019, W * 0.028));
+  if (hasTouch) {
+    let yy = cy;
+    for (const ln of ["Trascina a sinistra per muoverti",
+                      "Pulsanti a destra: FUOCO e PARATA",
+                      "SALTO in basso a sinistra",
+                      "In alto a sinistra: pausa e audio"]) {
+      yy += textWrap(ln, W / 2, yy, fs, "#c5cde0", "center", false, W * 0.92) * fs * 1.45;
+    }
+  } else {
   text("FRECCE / WASD  muovi il caccia", W / 2, cy, fs, "#c5cde0");
   text("SPAZIO  laser / attacco      X  siluro      GIÙ/S  parata", W / 2, cy + fs * 1.7, fs, "#c5cde0");
   text("P  pausa      M  audio on/off", W / 2, cy + fs * 3.4, fs, "#c5cde0");
-  if (hasTouch) text("Touch: trascina a sinistra per muoverti, pulsanti a destra", W / 2, cy + fs * 5.1, fs, "#8fa2c5");
 
+  }
   if (Math.sin(G.time * 4) > -0.3)
-    text("PREMI INVIO PER INIZIARE", W / 2, H * 0.82, Math.max(15, MINWH * 0.026), "#ffffff", "center", true);
+    text(hasTouch ? "TOCCA LO SCHERMO PER INIZIARE" : "PREMI INVIO PER INIZIARE",
+         W / 2, H * 0.82, Math.max(14, Math.min(MINWH * 0.026, W * 0.04)), "#ffffff", "center", true);
 
   if (G.hi > 0) text("RECORD  " + fmtScore(G.hi), W / 2, H * 0.06, 14, "#8fa2c5");
   text("Fan game non ufficiale · nessuna affiliazione con Lucasfilm/Disney", W / 2, H - 16, 10, "#4d5670");
@@ -3269,7 +3318,7 @@ function drawCrawl() {
     ctx.restore();
   }
   ctx.globalAlpha = 1;
-  text("INVIO per saltare", W / 2, H - 20, 11, "#4d5670");
+  text(hasTouch ? "tocca per saltare" : "INVIO per saltare", W / 2, H - 20, 11, "#4d5670");
 }
 
 function drawVictory() {
@@ -3287,7 +3336,7 @@ function drawVictory() {
   else text("RECORD  " + fmtScore(G.hi), W / 2, H * 0.61, 13, "#8fa2c5");
 
   if (Math.sin(G.time * 4) > -0.3)
-    text("INVIO: gioca ancora", W / 2, H * 0.78, Math.max(14, MINWH * 0.024), "#ffffff");
+    text(hasTouch ? "TOCCA per giocare ancora" : "INVIO: gioca ancora", W / 2, H * 0.78, Math.max(13, Math.min(MINWH * 0.024, W * 0.038)), "#ffffff");
 }
 
 function drawGameOver() {
@@ -3300,7 +3349,9 @@ function drawGameOver() {
   text("PUNTEGGIO  " + fmtScore(G.score), W / 2, H * 0.52, Math.max(15, MINWH * 0.026), "#ffffff");
   text("RECORD  " + fmtScore(G.hi), W / 2, H * 0.58, 13, "#8fa2c5");
   if (Math.sin(G.time * 4) > -0.3)
-    text("INVIO: riprova la fase      ESC: torna al titolo", W / 2, H * 0.75, Math.max(13, MINWH * 0.022), "#ffffff");
+    text(hasTouch ? "TOCCA per riprovare la fase" : "INVIO: riprova la fase      ESC: torna al titolo",
+         W / 2, H * 0.75, Math.max(12, Math.min(MINWH * 0.022, W * 0.034)), "#ffffff");
+  if (hasTouch) drawTouchButton(menuBtn(), "MENU", "#8fa2c5", 12);
 }
 
 // ---------------------------------------------------------- HUD comune
@@ -3328,22 +3379,13 @@ function drawHUD() {
     ctx.fill();
   }
 
-  if (AudioFX.muted) text("AUDIO OFF (M)", W - 18, H - 12, 10, "#4d5670", "right");
+  if (AudioFX.muted && !hasTouch) text("AUDIO OFF (M)", W - 18, H - 12, 10, "#4d5670", "right");
 
   // pulsanti touch
   if (hasTouch && (G.screen === "space" || G.screen === "trench")) {
-    const fb = fireBtn();
-    ctx.globalAlpha = 0.35;
-    ctx.strokeStyle = "#ff8c85"; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(fb.x, fb.y, fb.r, 0, TAU); ctx.stroke();
-    text("FUOCO", fb.x, fb.y, 13, "#ff8c85");
-    if (G.screen === "trench") {
-      const tb = torpBtn();
-      ctx.strokeStyle = "#ff6fe0";
-      ctx.beginPath(); ctx.arc(tb.x, tb.y, tb.r, 0, TAU); ctx.stroke();
-      text("SILURO", tb.x, tb.y, 12, "#ff6fe0");
-    }
-    ctx.globalAlpha = 1;
+    drawTouchButton(fireBtn(), "FUOCO", "#ff8c85", 13);
+    if (G.screen === "trench") drawTouchButton(torpBtn(), "SILURO", "#ff6fe0", 12);
+    drawServiceButtons();
   }
 }
 
@@ -3552,7 +3594,9 @@ function draw() {
     ctx.fillStyle = "rgba(0,0,0,0.6)";
     ctx.fillRect(0, 0, W, H);
     text("PAUSA", W / 2, H / 2, Math.max(26, MINWH * 0.05), "#ffffff", "center", true);
-    text("P o INVIO per continuare", W / 2, H / 2 + MINWH * 0.06, 14, "#8fa2c5");
+    text(hasTouch ? "Tocca lo schermo per continuare" : "P o INVIO per continuare",
+         W / 2, H / 2 + MINWH * 0.06, Math.max(12, Math.min(14, W * 0.032)), "#8fa2c5");
+    if (hasTouch) drawTouchButton(menuBtn(), "MENU", "#8fa2c5", 12);
   }
 }
 
