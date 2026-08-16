@@ -37,13 +37,18 @@ all'ingresso nella trincea. «Che la Forza sia con te…»
 | M | audio on/off |
 | ESC | torna al titolo |
 
-Su touch: trascina sulla metà sinistra dello schermo per muoverti, pulsanti
-FUOCO e SILURO a destra.
+Su touch non serve la tastiera: trascina nella metà sinistra per muoverti,
+usa i pulsanti FUOCO/ATTACCO e SILURO/PARATA a destra, SALTO in basso a
+sinistra nel duello, e pausa e audio in alto a sinistra.
 
 ## Esecuzione
 
 Apri `index.html` in un browser qualsiasi, oppure visita
 `https://fbacchin.github.io/Giochi/guerre-stellari/`.
+
+Si installa come app: su iPhone apri il sito in Safari, poi **Condividi →
+Aggiungi a Home**; l'icona pixel-art comparirà tra le app e il gioco partirà
+a schermo intero (e funziona anche offline).
 
 Il record personale viene salvato in `localStorage`.
 

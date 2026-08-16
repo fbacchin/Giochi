@@ -1,0 +1,17 @@
+{
+  "name": "Assalto alla Morte Nera",
+  "short_name": "Morte Nera",
+  "description": "Fan game arcade ispirato a Guerre Stellari: X-wing, Millennium Falcon, duello con Darth Vader e la corsa nella trincea.",
+  "lang": "it",
+  "start_url": ".",
+  "scope": ".",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#04060c",
+  "theme_color": "#04060c",
+  "icons": [
+    { "src": "icon-180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
