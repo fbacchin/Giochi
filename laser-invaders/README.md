@@ -23,7 +23,12 @@ dipendenze, niente build, funziona anche offline.
   ogni tanto ti piomba addosso in picchiata e sputa ventagli di colpi — sempre più
   spesso e più veloce man mano che perde energia (la barra rossa in alto). Abbattilo per
   passare al livello successivo: vale da 750 punti in su e lascia cadere due capsule.
-- Vita extra ogni 2.500 punti. Il record resta salvato sul dispositivo.
+- Vita extra ogni 2.500 punti.
+- **Classifica arcade**: a fine partita, se rientri nei migliori 10, registri le tue
+  **iniziali di 3 lettere** — si scrivono da tastiera oppure toccando l'alfabeto sullo
+  schermo, con `<` per cancellare. La tabella dei **migliori 10** (nome, punteggio e
+  livello raggiunto) resta salvata sul dispositivo e scorre nella schermata iniziale,
+  alternandosi alle istruzioni come nei cabinati veri.
 
 ## Le astronavi
 

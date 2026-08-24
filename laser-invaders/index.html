@@ -497,6 +497,12 @@ function sfxLevelUp(){
 function sfxExtraLife(){
   [880, 1320].forEach((f,i) => tone('square', f, f, 0.09, 0.3, i*0.1));
 }
+/* --- schermata iniziali --- */
+function sfxEntryTick(){ tone('square', 1046, 1046, 0.04, 0.22); }
+function sfxEntryDel(){ tone('square', 330, 220, 0.06, 0.2); }
+function sfxEntrySave(){
+  [523, 659, 784, 1047, 1319].forEach((f,i) => tone('square', f, f, 0.1, 0.26, i*0.1));
+}
 function sfxGameOver(){
   [392, 330, 262, 196, 131].forEach((f,i) => tone('sawtooth', f, f*0.97, 0.18, 0.3, i*0.16));
 }
@@ -529,14 +535,43 @@ function sfxPulse(alt){
   tone('triangle', alt ? 82 : 74, 0, 0.07, 0.13);
 }
 
+/* ============ Classifica: i migliori 10, iniziali di 3 lettere ============ */
+function loadScores(){
+  try{
+    const arr = JSON.parse(storeGet('li_scores') || '[]');
+    if (!Array.isArray(arr)) return [];
+    return arr
+      .filter(e => e && typeof e.s === 'number' && isFinite(e.s) && typeof e.n === 'string')
+      .map(e => ({ n: e.n.toUpperCase().slice(0,3) || '---',
+                   s: Math.max(0, Math.floor(e.s)),
+                   l: Math.max(1, Math.floor(e.l) || 1) }))
+      .sort((a,b) => b.s - a.s)
+      .slice(0,10);
+  }catch(e){ return []; }
+}
+let scores = loadScores();
+function saveScores(){ storeSet('li_scores', JSON.stringify(scores)); }
+function qualifies(s){ return s > 0 && (scores.length < 10 || s > scores[scores.length-1].s); }
+
+/* alfabeto della schermata iniziali: 26 lettere + trattino + cancella */
+const ENTRY_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ-<';
+const EG = { x: 37, y: 118, cw: 26, ch: 20, cols: 7 };
+const FINE = { x: 93, y: 224, w: 70, h: 20 };
+let entryName = [];        // lettere gia inserite
+let entryCur = 0;          // cella evidenziata (tastiera)
+let entryKb = false;       // il cursore compare solo se si usa la tastiera
+let entryIdle = 0;         // conferma da sola se il giocatore si distrae
+let entryRank = -1;        // posizione conquistata, da evidenziare in classifica
+
 /* ============ Stato di gioco ============ */
-const ST = { BOOT:0, ATTRACT:1, INTRO:2, PLAY:3, DYING:4, GAMEOVER:5 };
+const ST = { BOOT:0, ATTRACT:1, INTRO:2, PLAY:3, DYING:4, GAMEOVER:5, ENTRY:6, SCORES:7 };
 let state = ST.BOOT;
 let stateT = 0;            // tempo trascorso nello stato corrente
 let paused = false;
 
 let score = 0;
-let hiscore = parseInt(storeGet('li_hiscore') || '0', 10) || 0;
+let hiscore = Math.max(parseInt(storeGet('li_hiscore') || '0', 10) || 0,
+                       scores.length ? scores[0].s : 0);
 let hiscoreAtStart = 0;
 let lives = 3;
 let level = 1;
@@ -765,9 +800,106 @@ function update(dt){
     case ST.GAMEOVER:
       updateEnemies(dt, false);
       updateBoss(dt, false);
-      if (stateT > 6) setState(ST.ATTRACT);
+      if (stateT > 2.8 && qualifies(score)) startEntry();
+      else if (stateT > 6) setState(ST.ATTRACT);
+      break;
+
+    case ST.ENTRY:
+      entryIdle += dt;
+      /* se il giocatore si distrae la partita non resta appesa */
+      if (entryName.length === 3 && entryIdle > 9) entryConfirm();
+      else if (entryIdle > 30){
+        while (entryName.length < 3) entryName.push('A');
+        entryConfirm();
+      }
+      break;
+
+    case ST.SCORES:
+      if (stateT > 9) setState(ST.ATTRACT);
       break;
   }
+}
+
+/* ============ Registrazione del punteggio ============ */
+function startEntry(){
+  entryName = [];
+  entryCur = 0;
+  entryKb = false;
+  entryIdle = 0;
+  entryRank = -1;
+  setState(ST.ENTRY);
+}
+
+function entryAdd(ch){
+  if (entryName.length >= 3) return;
+  entryName.push(ch);
+  entryIdle = 0;
+  sfxEntryTick();
+}
+function entryDel(){
+  if (!entryName.length) return;
+  entryName.pop();
+  entryIdle = 0;
+  sfxEntryDel();
+}
+function entryPick(i){
+  if (i < 0 || i >= ENTRY_CHARS.length) return;
+  const ch = ENTRY_CHARS[i];
+  if (ch === '<') entryDel();
+  else entryAdd(ch);
+}
+function entryConfirm(){
+  if (state !== ST.ENTRY) return;
+  if (!entryName.length) return;                       // serve almeno una lettera
+  const rec = { n: (entryName.join('') + '---').slice(0,3), s: score, l: level };
+  scores.push(rec);
+  scores.sort((a,b) => b.s - a.s);
+  scores = scores.slice(0,10);
+  entryRank = scores.indexOf(rec);
+  saveScores();
+  if (scores.length && scores[0].s > hiscore){
+    hiscore = scores[0].s;
+    storeSet('li_hiscore', String(hiscore));
+  }
+  sfxEntrySave();
+  setState(ST.SCORES);
+}
+
+/* tocco/clic sulla griglia delle lettere */
+function entryTap(e){
+  const r = cv.getBoundingClientRect();
+  const px = (e.clientX - r.left) / r.width * W;
+  const py = (e.clientY - r.top) / r.height * H;
+  if (px >= FINE.x && px <= FINE.x+FINE.w && py >= FINE.y && py <= FINE.y+FINE.h){
+    entryConfirm();
+    return;
+  }
+  const col = Math.floor((px - EG.x) / EG.cw);
+  const row = Math.floor((py - EG.y) / EG.ch);
+  if (col < 0 || col >= EG.cols || row < 0) return;
+  const i = row*EG.cols + col;
+  if (i < ENTRY_CHARS.length){ entryCur = i; entryPick(i); }
+}
+
+/* tastiera: si scrive direttamente, frecce+spazio per la griglia */
+function entryKey(e){
+  const c = e.code;
+  if (c === 'Backspace' || c === 'Delete'){ e.preventDefault(); entryDel(); return; }
+  if (c === 'Enter' || c === 'NumpadEnter'){ e.preventDefault(); entryConfirm(); return; }
+  if (c === 'Space'){ e.preventDefault(); entryKb = true; entryPick(entryCur); return; }
+  if (c.indexOf('Arrow') === 0){
+    e.preventDefault();
+    entryKb = true;
+    const n = ENTRY_CHARS.length, cols = EG.cols;
+    if (c === 'ArrowLeft')  entryCur = (entryCur + n - 1) % n;
+    if (c === 'ArrowRight') entryCur = (entryCur + 1) % n;
+    if (c === 'ArrowUp')    entryCur = (entryCur + n - cols) % n;
+    if (c === 'ArrowDown')  entryCur = (entryCur + cols) % n;
+    return;
+  }
+  const m = /^Key([A-Z])$/.exec(c);
+  if (m){ entryAdd(m[1]); return; }
+  if (c === 'Minus' || c === 'NumpadSubtract') entryAdd('-');
 }
 
 function gameOver(){
@@ -1148,6 +1280,8 @@ function draw(){
   cx.globalAlpha = 1;
 
   if (state === ST.ATTRACT){ drawAttract(); drawFlash(); return; }
+  if (state === ST.ENTRY){ drawEntry(); drawFlash(); return; }
+  if (state === ST.SCORES){ drawScores(); drawFlash(); return; }
 
   /* --- HUD --- */
   text('PUNTEGGIO', 8, 6, COLORS.dim, 8);
@@ -1322,6 +1456,15 @@ function drawBoot(){
 function drawAttract(){
   const t = stateT;
 
+  /* come nei cabinati, la schermata alterna istruzioni e classifica */
+  if (scores.length && Math.floor(t/7) % 2 === 1){
+    text('MIGLIORI 10', W/2, 40, COLORS.magenta, 12, 'center');
+    drawScoreTable(70);
+    if (Math.floor(t*2) % 2 === 0)
+      text(isTouch ? 'TOCCA PER GIOCARE' : 'PREMI START', W/2, 292, COLORS.white, 8, 'center');
+    return;
+  }
+
   /* titolo con "aberrazione cromatica" */
   text('LASER', W/2+2, 56+2, COLORS.magenta, 16, 'center');
   text('LASER', W/2, 56, COLORS.cyan, 16, 'center');
@@ -1364,6 +1507,78 @@ function drawAttract(){
   text('(C) 1982 BACCHIN CORP.', W/2, 302, COLORS.dim, 8, 'center');
 }
 
+/* ---- schermata di registrazione delle iniziali ---- */
+function drawEntry(){
+  const t = stateT;
+  text('HAI FATTO UN RECORD!', W/2, 24, COLORS.amber, 8, 'center');
+  text('PUNTEGGIO ' + pad6(score), W/2, 42, COLORS.white, 8, 'center');
+
+  /* le tre caselle delle iniziali */
+  for (let i=0; i<3; i++){
+    const sx = W/2 + (i-1)*26;
+    const filled = i < entryName.length;
+    const active = i === entryName.length;
+    if (filled) text(entryName[i], sx, 62, COLORS.green, 16, 'center');
+    else if (active && Math.floor(t*3) % 2 === 0) text('_', sx, 62, COLORS.white, 16, 'center');
+    cx.fillStyle = active ? COLORS.white : COLORS.dim;
+    cx.fillRect(Math.round(sx-8), 82, 16, 1);
+  }
+
+  text(isTouch ? 'TOCCA LE LETTERE' : 'SCRIVI LE INIZIALI', W/2, 98, COLORS.dim, 8, 'center');
+
+  /* la griglia dell'alfabeto */
+  for (let i=0; i<ENTRY_CHARS.length; i++){
+    const col = i % EG.cols, row = (i / EG.cols) | 0;
+    const cxp = EG.x + col*EG.cw + EG.cw/2;
+    const cyp = EG.y + row*EG.ch + 6;
+    const ch = ENTRY_CHARS[i];
+    if (entryKb && i === entryCur){
+      cx.fillStyle = 'rgba(57,255,110,0.18)';
+      cx.fillRect(EG.x + col*EG.cw + 2, EG.y + row*EG.ch + 2, EG.cw-4, EG.ch-4);
+      cx.strokeStyle = COLORS.green;
+      cx.strokeRect(EG.x + col*EG.cw + 2.5, EG.y + row*EG.ch + 2.5, EG.cw-5, EG.ch-5);
+    }
+    text(ch, cxp, cyp, ch === '<' ? COLORS.amber : (ch === '-' ? COLORS.dim : COLORS.cyan), 8, 'center');
+  }
+  text('<  CANCELLA', W/2, EG.y + 4*EG.ch + 6, COLORS.dim, 8, 'center');
+
+  /* il pulsante di conferma si accende quando le iniziali sono complete */
+  const ready = entryName.length > 0;                  // si puo confermare
+  const on = entryName.length === 3 && Math.floor(t*3) % 2 === 0;
+  cx.strokeStyle = ready ? COLORS.green : COLORS.dim;
+  cx.strokeRect(FINE.x+0.5, FINE.y+0.5, FINE.w-1, FINE.h-1);
+  if (on){
+    cx.fillStyle = 'rgba(57,255,110,0.16)';
+    cx.fillRect(FINE.x+1, FINE.y+1, FINE.w-2, FINE.h-2);
+  }
+  text('FINE', W/2, FINE.y+7, ready ? COLORS.green : COLORS.dim, 8, 'center');
+}
+
+/* ---- tabella dei migliori 10 ---- */
+function drawScoreTable(y0){
+  if (!scores.length){
+    text('NESSUN RECORD', W/2, y0+70, COLORS.dim, 8, 'center');
+    return;
+  }
+  for (let i=0; i<10; i++){
+    const y = y0 + i*20;
+    const e = scores[i];
+    const mine = i === entryRank && Math.floor(animT*3) % 2 === 0;
+    const col = !e ? '#1b2338' : (mine ? COLORS.white : (i === 0 ? COLORS.amber : COLORS.cyan));
+    text(String(i+1).padStart(2, ' '), 24, y, e ? COLORS.dim : '#1b2338', 8);
+    text(e ? e.n : '---', 52, y, col, 8);
+    text(e ? pad6(e.s) : '------', 196, y, col, 8, 'right');
+    if (e) text('LV' + Math.min(99, e.l), 206, y, COLORS.dim, 8);
+  }
+}
+
+function drawScores(){
+  text('MIGLIORI 10', W/2, 34, COLORS.magenta, 12, 'center');
+  drawScoreTable(62);
+  if (Math.floor(stateT*2) % 2 === 0)
+    text(isTouch ? 'TOCCA PER CONTINUARE' : 'PREMI START', W/2, 288, COLORS.white, 8, 'center');
+}
+
 function drawGameOver(){
   cx.fillStyle = 'rgba(0,0,0,0.55)';
   cx.fillRect(0, 118, W, 84);
@@ -1387,12 +1602,17 @@ function anyStart(){
   audioResume();
   if (paused){ togglePause(false); return; }
   if (state === ST.ATTRACT) startGame();
-  else if (state === ST.GAMEOVER && stateT > 1.5) setState(ST.ATTRACT);
+  else if (state === ST.SCORES && stateT > 1) setState(ST.ATTRACT);
+  else if (state === ST.GAMEOVER && stateT > 1.5){
+    if (qualifies(score)) startEntry();
+    else setState(ST.ATTRACT);
+  }
 }
 
 addEventListener('keydown', e => {
   if (e.repeat) return;
   audioResume();
+  if (state === ST.ENTRY){ entryKey(e); return; }
   switch (e.code){
     case 'ArrowLeft': case 'KeyA': keys.left = true; e.preventDefault(); break;
     case 'ArrowRight': case 'KeyD': keys.right = true; e.preventDefault(); break;
@@ -1429,7 +1649,8 @@ const screenEl = document.getElementById('screen');
 let dragId = null, dragLastX = 0, dragLastY = 0;
 screenEl.addEventListener('pointerdown', e => {
   audioResume();
-  if (state === ST.ATTRACT || state === ST.GAMEOVER){ anyStart(); return; }
+  if (state === ST.ENTRY){ entryTap(e); return; }
+  if (state === ST.ATTRACT || state === ST.GAMEOVER || state === ST.SCORES){ anyStart(); return; }
   if (paused){ togglePause(false); return; }
   if (e.pointerType !== 'mouse' && dragId === null){
     dragId = e.pointerId;
@@ -1464,7 +1685,8 @@ function holdButton(el, prop){
     pad[prop] = true;
     el.classList.add('held');
     if (prop === 'fire'){
-      if (state === ST.ATTRACT || state === ST.GAMEOVER) anyStart();
+      if (state === ST.ENTRY) entryConfirm();
+      else if (state === ST.ATTRACT || state === ST.GAMEOVER || state === ST.SCORES) anyStart();
       else fireOnPress();
     }
     try{ el.setPointerCapture(e.pointerId); }catch(err){}
@@ -1560,6 +1782,14 @@ window.__dbg = {
   get bossWarn(){ return bossWarn; },
   get killsThisLevel(){ return killsThisLevel; },
   get bullets(){ return bullets.length; },
+  get scores(){ return scores.map(e => e.n + ':' + e.s + ':LV' + e.l); },
+  get entryName(){ return entryName.join(''); },
+  get entryRank(){ return entryRank; },
+  setScore(n){ score = n; },
+  gameOver(){ lives = 0; if (state === ST.PLAY) gameOver(); },
+  get hiscore(){ return hiscore; },
+  toAttract(){ setState(ST.ATTRACT); },
+  clearScores(){ scores = []; saveScores(); },
   forceBoss(){ killsThisLevel = KILLS_PER_LEVEL; },
   hurtBoss(n){ if (boss && boss.mode !== 'dying'){ boss.hp -= n; if (boss.hp <= 0) killBoss(); } },
   setLaser(n){ powerLevel = Math.max(0, n); },
