@@ -302,45 +302,33 @@ const SPR = {
     '.XXXXX.',
     '.X...X.'
   ]],
-  /* il mostro di fine livello: testata corazzata con occhi e zanne */
+  /* il mostro di fine livello: testata corazzata con corna, occhi e zanne */
   boss: [[
-    '..XX.........................XX..',
-    '..XXX.......................XXX..',
-    '...XXX.....................XXX...',
-    '....XXXX.................XXXX....',
-    '......XXXXXXXXXX.XXXXXXXXXX......',
-    '....XXXXXXXXXXXXXXXXXXXXXXXXX....',
-    '..XXXXXXXXXXXXXXXXXXXXXXXXXXXXX..',
-    '.XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX.',
-    'XXXX....XXXXXXXXXXXXXXXXX....XXXX',
-    'XXX......XXXXXXXXXXXXXXX......XXX',
-    'XXX..XX..XXXXXXXXXXXXXXX..XX..XXX',
-    'XXX..XX..XXXXXXXXXXXXXXX..XX..XXX',
-    'XXX......XXXXXXXXXXXXXXX......XXX',
-    'XXXX....XXXXXXXXXXXXXXXXX....XXXX',
-    '.XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX.',
-    '..XXXXXXXXXXXXXXXXXXXXXXXXXXXXX..',
-    '..X.X.X.X.X.X.X.X.X.X.X.X.X.X.X..',
-    '....X.....X.....X.....X.....X....'
+    'XX.................XX',
+    '.XX...............XX.',
+    '..XXXXXXXXXXXXXXXXX..',
+    '.XXXXXXXXXXXXXXXXXXX.',
+    'XXX..XXXXXXXXXXX..XXX',
+    'XX....XXXXXXXXX....XX',
+    'XX.XX.XXXXXXXXX.XX.XX',
+    'XX....XXXXXXXXX....XX',
+    'XXX..XXXXXXXXXXX..XXX',
+    '.XXXXXXXXXXXXXXXXXXX.',
+    '..X.X.X.X.X.X.X.X.X..',
+    '..X.....X...X.....X..'
   ],[
-    '..XX.........................XX..',
-    '.XXXX.......................XXXX.',
-    '..XXXX.....................XXXX..',
-    '....XXXX.................XXXX....',
-    '......XXXXXXXXXX.XXXXXXXXXX......',
-    '....XXXXXXXXXXXXXXXXXXXXXXXXX....',
-    '..XXXXXXXXXXXXXXXXXXXXXXXXXXXXX..',
-    '.XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX.',
-    'XXXX....XXXXXXXXXXXXXXXXX....XXXX',
-    'XXX......XXXXXXXXXXXXXXX......XXX',
-    'XXX..XX..XXXXXXXXXXXXXXX..XX..XXX',
-    'XXX..XX..XXXXXXXXXXXXXXX..XX..XXX',
-    'XXX......XXXXXXXXXXXXXXX......XXX',
-    'XXXX....XXXXXXXXXXXXXXXXX....XXXX',
-    '.XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX.',
-    '..XXXXXXXXXXXXXXXXXXXXXXXXXXXXX..',
-    '..XX.X.X.X.X.X.X.X.X.X.X.X.X.XX..',
-    '..X.....X.....X.....X.....X....X.'
+    'XX.................XX',
+    'XXX...............XXX',
+    '..XXXXXXXXXXXXXXXXX..',
+    '.XXXXXXXXXXXXXXXXXXX.',
+    'XXX..XXXXXXXXXXX..XXX',
+    'XX....XXXXXXXXX....XX',
+    'XX.XX.XXXXXXXXX.XX.XX',
+    'XX....XXXXXXXXX....XX',
+    'XXX..XXXXXXXXXXX..XXX',
+    '.XXXXXXXXXXXXXXXXXXX.',
+    '..XX.X.X.X.X.X.X.XX..',
+    '...X....X...X....X...'
   ]]
 };
 
@@ -690,8 +678,9 @@ let nextLifeAt = 2500;
 
 /* Mostro di fine livello: compare quando il livello e ripulito */
 const KILLS_PER_LEVEL = 12;
-const BOSS_SCALE = 2;                     // lo sprite 33x18 e disegnato al doppio
-const BOSS_W = 33*BOSS_SCALE, BOSS_H = 18*BOSS_SCALE;
+const BOSS_EVERY = 5;                     // il mostro chiude un livello su cinque
+const BOSS_SCALE = 2;                     // lo sprite 21x12 e disegnato al doppio
+const BOSS_W = 21*BOSS_SCALE, BOSS_H = 12*BOSS_SCALE;
 const BOSS_TOP_Y = 40;                    // quota di crociera del mostro
 let boss = null;
 let bossWarn = 0;                         // secondi di avviso prima dell'arrivo
@@ -1080,10 +1069,14 @@ function updatePlay(dt){
     spawnT = Math.max(1.0, 2.3 - level*0.13) + Math.random()*0.6;
   }
 
-  /* --- il mostro di fine livello --- */
+  /* --- fine livello: ogni cinque arriva il mostro, altrimenti si tira dritto --- */
   if (!boss && bossWarn <= 0 && killsThisLevel >= KILLS_PER_LEVEL){
-    bossWarn = 2.2;
-    sfxBossWarn();
+    if (level % BOSS_EVERY === 0){
+      bossWarn = 2.2;
+      sfxBossWarn();
+    } else {
+      advanceLevel();
+    }
   }
   if (!boss && bossWarn > 0){
     bossWarn -= dt;
@@ -1159,8 +1152,17 @@ function updatePlay(dt){
 }
 
 /* ============ Mostro di fine livello ============ */
+function advanceLevel(){
+  level++;
+  killsThisLevel = 0;
+  if (state !== ST.GAMEOVER){
+    popups.push({ x: W/2, y: 150, text: 'LIVELLO '+level, life: 1.6, color: COLORS.cyan });
+    sfxLevelUp();
+  }
+}
+
 function spawnBoss(){
-  const hp = 34 + level*16;
+  const hp = 30 + level*10;
   boss = {
     x: W/2, y: -BOSS_H-2, hp, maxHp: hp,
     mode: 'enter', t: 0, flash: 0,
@@ -1203,16 +1205,11 @@ function updateBoss(dt, canFire){
     if (b.dieT > 1.5){
       boom(b.x, b.y + BOSS_H/2, COLORS.white, 30);
       boss = null;
-      level++;
-      killsThisLevel = 0;
       spawnT = 1.8;
       /* ricompensa: due capsule di potenziamento */
       powerups.push({ x: Math.max(14, W/2-30), y: BOSS_TOP_Y, t: 0 });
       powerups.push({ x: Math.min(W-14, W/2+30), y: BOSS_TOP_Y, t: 0 });
-      if (state !== ST.GAMEOVER){
-        popups.push({ x: W/2, y: 150, text: 'LIVELLO '+level, life: 1.6, color: COLORS.cyan });
-        sfxLevelUp();
-      }
+      advanceLevel();
     }
     return;
   }
@@ -1620,8 +1617,8 @@ function drawAttract(){
 
   /* il mostro che aspetta alla fine di ogni livello */
   cx.drawImage(sprite('boss', fr, Math.floor(t*2) % 2 ? COLORS.red : COLORS.amber),
-               Math.round(W/2 - BOSS_W/2), 208, BOSS_W, BOSS_H);
-  text('IL MOSTRO TI ASPETTA', W/2, 250, COLORS.red, 8, 'center');
+               Math.round(W/2 - BOSS_W/2), 214, BOSS_W, BOSS_H);
+  text('MOSTRO OGNI 5 LIVELLI', W/2, 250, COLORS.red, 8, 'center');
 
   /* invito lampeggiante */
   if (Math.floor(t*2) % 2 === 0){
@@ -1923,6 +1920,9 @@ window.__dbg = {
   refreshNet(){ return refreshNetScores(true); },
   get pending(){ return pending.length; },
   forceBoss(){ killsThisLevel = KILLS_PER_LEVEL; },
+  setLevel(n){ level = n; killsThisLevel = 0; boss = null; bossWarn = 0; },
+  get bossSize(){ return { w: BOSS_W, h: BOSS_H }; },
+  addKill(){ killsThisLevel++; },
   hurtBoss(n){ if (boss && boss.mode !== 'dying'){ boss.hp -= n; if (boss.hp <= 0) killBoss(); } },
   setLaser(n){ powerLevel = Math.max(0, n); },
   spawnPowerup(){ powerups.push({ x: player.x, y: player.y-40, t: 0 }); }

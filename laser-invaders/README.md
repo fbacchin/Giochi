@@ -18,11 +18,12 @@ dipendenze, niente build, funziona anche offline.
   **drone gregario** che vola al tuo fianco e spara con te, poi un **secondo drone**,
   e da lì in poi ogni capsula aumenta la **cadenza di fuoco** (fino a raddoppiarla).
 - Se vieni colpito perdi una vita e scendi di un gradino nella scala.
-- **Alla fine di ogni livello arriva il mostro**: dopo 12 astronavi abbattute scatta
-  l'allarme e compare un'enorme testata corazzata con occhi e zanne. Spazza lo schermo,
+- **Ogni 5 livelli arriva il mostro**: alla fine del 5°, del 10°, del 15°… scatta
+  l'allarme e compare una testata corazzata con corna, occhi e zanne. Spazza lo schermo,
   ogni tanto ti piomba addosso in picchiata e sputa ventagli di colpi — sempre più
   spesso e più veloce man mano che perde energia (la barra rossa in alto). Abbattilo per
-  passare al livello successivo: vale da 750 punti in su e lascia cadere due capsule.
+  passare al livello successivo: vale da 1.750 punti in su e lascia cadere due capsule.
+  Gli altri livelli si superano semplicemente ripulendo il cielo.
 - Vita extra ogni 2.500 punti.
 - **Classifica mondiale condivisa**: a fine partita, se rientri nei migliori 10, registri
   le tue **iniziali di 3 lettere** — si scrivono da tastiera oppure toccando l'alfabeto
