@@ -682,6 +682,8 @@ const BOSS_EVERY = 5;                     // il mostro chiude un livello su cinq
 const BOSS_SCALE = 2;                     // lo sprite 21x12 e disegnato al doppio
 const BOSS_W = 21*BOSS_SCALE, BOSS_H = 12*BOSS_SCALE;
 const BOSS_TOP_Y = 40;                    // quota di crociera del mostro
+const BOSS_AMP = 91;                      // ampiezza dello sguscio, fissa
+const BOSS_SWEEP = 0.5;                   // ritmo: al massimo 91 px/s, inseguibile
 let boss = null;
 let bossWarn = 0;                         // secondi di avviso prima dell'arrivo
 
@@ -1153,19 +1155,18 @@ function updatePlay(dt){
 
 /* ============ Mostro di fine livello ============ */
 function advanceLevel(){
+  if (state === ST.GAMEOVER) return;      // la partita e chiusa: il livello resta quello
   level++;
   killsThisLevel = 0;
-  if (state !== ST.GAMEOVER){
-    popups.push({ x: W/2, y: 150, text: 'LIVELLO '+level, life: 1.6, color: COLORS.cyan });
-    sfxLevelUp();
-  }
+  popups.push({ x: W/2, y: 150, text: 'LIVELLO '+level, life: 1.6, color: COLORS.cyan });
+  sfxLevelUp();
 }
 
 function spawnBoss(){
-  const hp = 30 + level*10;
+  const hp = 22 + level*5;
   boss = {
     x: W/2, y: -BOSS_H-2, hp, maxHp: hp,
-    mode: 'enter', t: 0, flash: 0,
+    mode: 'enter', t: 0, phase: 0, flash: 0,
     fireT: 1.3, diveT: 3.5 + Math.random()*2, diving: false, divePhase: 0,
     dieT: 0
   };
@@ -1216,8 +1217,10 @@ function updateBoss(dt, canFire){
 
   /* --- in combattimento: spazza lo schermo e ogni tanto picchia --- */
   const rage = 1 + (1 - b.hp/b.maxHp);          // 1 quando e intatto, 2 allo stremo
-  const amp = W/2 - BOSS_W/2 - 4;
-  b.x = W/2 + Math.sin(b.t * 0.62 * rage) * amp;
+  /* la fase si accumula: se cambia il ritmo cambia la velocita, non la posizione
+     (moltiplicare il tempo trascorso faceva scattare il mostro di lato a ogni colpo) */
+  b.phase += dt * BOSS_SWEEP * rage;
+  b.x = W/2 + Math.sin(b.phase) * BOSS_AMP;
 
   b.diveT -= dt;
   if (!b.diving && b.diveT <= 0){
@@ -1922,6 +1925,9 @@ window.__dbg = {
   forceBoss(){ killsThisLevel = KILLS_PER_LEVEL; },
   setLevel(n){ level = n; killsThisLevel = 0; boss = null; bossWarn = 0; },
   get bossSize(){ return { w: BOSS_W, h: BOSS_H }; },
+  setInvuln(n){ player.invuln = n; },
+  trackBoss(q){ if (boss){ player.x = boss.x; player.y = q; } player.invuln = 999;
+                if (player.cool <= 0) fireLaser(); },
   addKill(){ killsThisLevel++; },
   hurtBoss(n){ if (boss && boss.mode !== 'dying'){ boss.hp -= n; if (boss.hp <= 0) killBoss(); } },
   setLaser(n){ powerLevel = Math.max(0, n); },
