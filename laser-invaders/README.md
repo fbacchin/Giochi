@@ -24,11 +24,12 @@ dipendenze, niente build, funziona anche offline.
   spesso e più veloce man mano che perde energia (la barra rossa in alto). Abbattilo per
   passare al livello successivo: vale da 750 punti in su e lascia cadere due capsule.
 - Vita extra ogni 2.500 punti.
-- **Classifica arcade**: a fine partita, se rientri nei migliori 10, registri le tue
-  **iniziali di 3 lettere** — si scrivono da tastiera oppure toccando l'alfabeto sullo
-  schermo, con `<` per cancellare. La tabella dei **migliori 10** (nome, punteggio e
-  livello raggiunto) resta salvata sul dispositivo e scorre nella schermata iniziale,
-  alternandosi alle istruzioni come nei cabinati veri.
+- **Classifica mondiale condivisa**: a fine partita, se rientri nei migliori 10, registri
+  le tue **iniziali di 3 lettere** — si scrivono da tastiera oppure toccando l'alfabeto
+  sullo schermo, con `<` per cancellare. La tabella dei **migliori 10** è la stessa per
+  tutti i giocatori: scorre nella schermata iniziale alternandosi alle istruzioni, come
+  nei cabinati veri. Senza rete il gioco continua con la classifica del dispositivo e
+  spedisce il punteggio da solo appena la connessione torna.
 
 ## Le astronavi
 
@@ -67,6 +68,23 @@ Due strade, in ordine di sforzo:
    il gioco gira in una WKWebView senza modifiche al codice. Servono un Mac con Xcode
    e l'account Apple Developer. Il codice è già pronto per questo passaggio
    (viewport con safe-area, audio sbloccato al primo tocco, controlli touch, niente risorse esterne).
+
+## Come funziona la classifica condivisa
+
+La pagina è statica (GitHub Pages non può ricevere dati), quindi i punteggi vivono in una
+tabella Postgres su Supabase, condivisa da tutti i giochi del repo:
+
+| Aspetto | Scelta |
+| --- | --- |
+| Tabella | `public.arcade_scores` — colonna `game` per tenere separate le classifiche |
+| Chiave nella pagina | chiave *publishable*, pensata per stare nel client |
+| Permessi | lettura e sola aggiunta; **modifica e cancellazione vietate** dal database |
+| Validazione | vincoli SQL su iniziali (`A-Z0-9-`, max 3), punteggio e livello |
+| Anti-flood | massimo 30 registrazioni al minuto |
+| Senza rete | si gioca lo stesso: classifica locale e invio differito (fino a 5 in coda) |
+
+Per aggiungere un altro gioco alla stessa classifica basta usare un valore diverso di
+`game` nelle chiamate REST.
 
 ## File
 

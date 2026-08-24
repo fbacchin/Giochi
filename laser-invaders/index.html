@@ -549,9 +549,117 @@ function loadScores(){
       .slice(0,10);
   }catch(e){ return []; }
 }
-let scores = loadScores();
-function saveScores(){ storeSet('li_scores', JSON.stringify(scores)); }
+let localScores = loadScores();          // copia personale, funziona anche offline
+let scores = localScores.slice();       // tabella mostrata a schermo
+function saveScores(){ storeSet('li_scores', JSON.stringify(localScores)); }
 function qualifies(s){ return s > 0 && (scores.length < 10 || s > scores[scores.length-1].s); }
+
+/* ---- classifica condivisa: tutti i giocatori vedono gli stessi punteggi ----
+   La chiave qui sotto e pubblica per progetto: consente solo di leggere la
+   classifica e aggiungere una riga. Modifiche e cancellazioni sono vietate
+   dal database, cosi nessuno puo alterare i punteggi degli altri. */
+const NET = {
+  url: 'https://qtgbfbmldmxjsvrtehha.supabase.co/rest/v1/arcade_scores',
+  key: 'sb_publishable_--lu6fWBDPEzN7yrxPMevQ_KbjoUZqu',
+  game: 'laser-invaders'
+};
+let netOk = false;          // la classifica mostrata arriva dalla rete
+let netMsg = '';            // messaggio di stato ('INVIO...', 'SOLO IN LOCALE')
+let netLast = -1e9;         // ultimo aggiornamento, per non tempestare il server
+
+function netHeaders(extra){
+  const h = { apikey: NET.key, Authorization: 'Bearer ' + NET.key };
+  if (extra) for (const k in extra) h[k] = extra[k];
+  return h;
+}
+function netFetch(path, opts, ms){
+  const o = opts || {};
+  /* niente attese infinite: se la rete non risponde si torna alla copia locale */
+  if (typeof AbortController === 'function'){
+    const ac = new AbortController();
+    o.signal = ac.signal;
+    setTimeout(() => ac.abort(), ms || 6000);
+  }
+  return fetch(NET.url + path, o);
+}
+
+/* punteggi fatti senza rete: restano in coda e partono appena si puo */
+function loadPending(){
+  try{
+    const a = JSON.parse(storeGet('li_pending') || '[]');
+    return Array.isArray(a) ? a.slice(0,5) : [];
+  }catch(e){ return []; }
+}
+let pending = loadPending();
+function queuePending(rec){
+  if (pending.length >= 5) return;
+  pending.push(rec);
+  storeSet('li_pending', JSON.stringify(pending));
+}
+function flushPending(){
+  if (!netOk || !pending.length) return;
+  const coda = pending.slice();
+  pending = [];
+  storeSet('li_pending', '[]');
+  let chain = Promise.resolve();
+  for (const rec of coda){
+    chain = chain.then(() => netFetch('', {
+      method: 'POST',
+      headers: netHeaders({ 'Content-Type': 'application/json', Prefer: 'return=minimal' }),
+      body: JSON.stringify({ game: NET.game, name: rec.n, score: rec.s, level: rec.l })
+    }).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); })
+      .catch(() => { queuePending(rec); }));     // rimane in coda per la prossima volta
+  }
+  chain.then(() => refreshNetScores(true))
+       .then(() => { if (netOk && !pending.length) netMsg = ''; });
+}
+
+/* scarica i migliori 10 dal server */
+function refreshNetScores(force){
+  if (!force && animT - netLast < 25) return Promise.resolve(netOk);
+  netLast = animT;
+  return netFetch('?select=name,score,level&game=eq.' + NET.game +
+                  '&order=score.desc,created_at.asc&limit=10',
+                  { headers: netHeaders() })
+    .then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)))
+    .then(rows => {
+      if (!Array.isArray(rows)) throw new Error('risposta inattesa');
+      scores = rows.map(r => ({ n: String(r.name || '---').toUpperCase().slice(0,3),
+                                s: Math.max(0, Math.floor(r.score) || 0),
+                                l: Math.max(1, Math.floor(r.level) || 1) }));
+      netOk = true;
+      if (pending.length) setTimeout(flushPending, 0);
+      return true;
+    })
+    .catch(() => {
+      /* senza rete (o dentro un'anteprima isolata) si usa la classifica locale */
+      netOk = false;
+      scores = localScores.slice();
+      return false;
+    });
+}
+
+/* manda un punteggio al server e ricarica la classifica */
+function submitNetScore(rec){
+  netMsg = 'INVIO IN CORSO...';
+  return netFetch('', {
+      method: 'POST',
+      headers: netHeaders({ 'Content-Type': 'application/json', Prefer: 'return=minimal' }),
+      body: JSON.stringify({ game: NET.game, name: rec.n, score: rec.s, level: rec.l })
+    })
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return refreshNetScores(true); })
+    .then(() => {
+      netMsg = '';
+      entryRank = scores.findIndex(e => e.n === rec.n && e.s === rec.s);
+    })
+    .catch(() => {
+      netOk = false;
+      netMsg = 'SALVATO SOLO SU QUESTO DISPOSITIVO';
+      scores = localScores.slice();
+      entryRank = scores.indexOf(rec);
+      queuePending(rec);          // riprovera al prossimo avvio
+    });
+}
 
 /* alfabeto della schermata iniziali: 26 lettere + trattino + cancella */
 const ENTRY_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ-<';
@@ -571,7 +679,7 @@ let paused = false;
 
 let score = 0;
 let hiscore = Math.max(parseInt(storeGet('li_hiscore') || '0', 10) || 0,
-                       scores.length ? scores[0].s : 0);
+                       localScores.length ? localScores[0].s : 0);
 let hiscoreAtStart = 0;
 let lives = 3;
 let level = 1;
@@ -772,6 +880,7 @@ function update(dt){
       break;
 
     case ST.ATTRACT:
+      refreshNetScores(false);       // si aggiorna da sola, senza insistere
       break; // si esce con startGame() dall'input
 
     case ST.INTRO:
@@ -852,14 +961,27 @@ function entryConfirm(){
   if (state !== ST.ENTRY) return;
   if (!entryName.length) return;                       // serve almeno una lettera
   const rec = { n: (entryName.join('') + '---').slice(0,3), s: score, l: level };
-  scores.push(rec);
-  scores.sort((a,b) => b.s - a.s);
-  scores = scores.slice(0,10);
-  entryRank = scores.indexOf(rec);
+
+  /* copia personale: resta anche senza rete */
+  localScores.push(rec);
+  localScores.sort((a,b) => b.s - a.s);
+  localScores = localScores.slice(0,10);
   saveScores();
-  if (scores.length && scores[0].s > hiscore){
-    hiscore = scores[0].s;
+  if (localScores[0].s > hiscore){
+    hiscore = localScores[0].s;
     storeSet('li_hiscore', String(hiscore));
+  }
+
+  /* classifica condivisa */
+  netMsg = '';
+  if (netOk){
+    submitNetScore(rec);                 // se fallisce, finisce da solo in coda
+  } else {
+    queuePending(rec);                   // partira appena la rete torna
+    netMsg = 'SALVATO SOLO SU QUESTO DISPOSITIVO';
+    scores = localScores.slice();
+    entryRank = scores.indexOf(rec);
+    refreshNetScores(true);              // un tentativo: se c'e rete, la coda parte
   }
   sfxEntrySave();
   setState(ST.SCORES);
@@ -1458,8 +1580,10 @@ function drawAttract(){
 
   /* come nei cabinati, la schermata alterna istruzioni e classifica */
   if (scores.length && Math.floor(t/7) % 2 === 1){
-    text('MIGLIORI 10', W/2, 40, COLORS.magenta, 12, 'center');
-    drawScoreTable(70);
+    text('MIGLIORI 10', W/2, 36, COLORS.magenta, 12, 'center');
+    text(netOk ? 'CLASSIFICA MONDIALE' : 'SOLO QUESTO DISPOSITIVO', W/2, 54,
+         netOk ? COLORS.green : COLORS.dim, 8, 'center');
+    drawScoreTable(74);
     if (Math.floor(t*2) % 2 === 0)
       text(isTouch ? 'TOCCA PER GIOCARE' : 'PREMI START', W/2, 292, COLORS.white, 8, 'center');
     return;
@@ -1573,10 +1697,13 @@ function drawScoreTable(y0){
 }
 
 function drawScores(){
-  text('MIGLIORI 10', W/2, 34, COLORS.magenta, 12, 'center');
-  drawScoreTable(62);
-  if (Math.floor(stateT*2) % 2 === 0)
-    text(isTouch ? 'TOCCA PER CONTINUARE' : 'PREMI START', W/2, 288, COLORS.white, 8, 'center');
+  text('MIGLIORI 10', W/2, 30, COLORS.magenta, 12, 'center');
+  text(netOk ? 'CLASSIFICA MONDIALE' : 'SOLO QUESTO DISPOSITIVO', W/2, 48,
+       netOk ? COLORS.green : COLORS.dim, 8, 'center');
+  drawScoreTable(68);
+  if (netMsg) text(netMsg, W/2, 274, COLORS.amber, 8, 'center');
+  else if (Math.floor(stateT*2) % 2 === 0)
+    text(isTouch ? 'TOCCA PER CONTINUARE' : 'PREMI START', W/2, 274, COLORS.white, 8, 'center');
 }
 
 function drawGameOver(){
@@ -1789,12 +1916,20 @@ window.__dbg = {
   gameOver(){ lives = 0; if (state === ST.PLAY) gameOver(); },
   get hiscore(){ return hiscore; },
   toAttract(){ setState(ST.ATTRACT); },
-  clearScores(){ scores = []; saveScores(); },
+  clearScores(){ scores = []; localScores = []; saveScores(); },
+  get netOk(){ return netOk; },
+  get netMsg(){ return netMsg; },
+  setEndpoint(u){ NET.url = u; netOk = false; netLast = -1e9; },
+  refreshNet(){ return refreshNetScores(true); },
+  get pending(){ return pending.length; },
   forceBoss(){ killsThisLevel = KILLS_PER_LEVEL; },
   hurtBoss(n){ if (boss && boss.mode !== 'dying'){ boss.hp -= n; if (boss.hp <= 0) killBoss(); } },
   setLaser(n){ powerLevel = Math.max(0, n); },
   spawnPowerup(){ powerups.push({ x: player.x, y: player.y-40, t: 0 }); }
 };
+
+/* prima lettura della classifica condivisa */
+refreshNetScores(true);
 
 /* ============ Service worker (offline / PWA) ============ */
 if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0){

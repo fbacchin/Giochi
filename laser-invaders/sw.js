@@ -1,5 +1,5 @@
 /* Service worker: cache-first per giocare offline */
-const CACHE = 'giochi-laser-invaders-v3';
+const CACHE = 'giochi-laser-invaders-v4';
 const ASSETS = ['.', 'index.html', 'manifest.webmanifest', 'icon-180.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {
@@ -16,6 +16,8 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
+  /* la classifica condivisa non va mai dalla cache: sempre dati freschi */
+  if (new URL(e.request.url).origin !== location.origin) return;
   e.respondWith(
     caches.match(e.request, { ignoreSearch: true }).then(hit =>
       hit ||
