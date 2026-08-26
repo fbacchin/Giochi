@@ -173,7 +173,7 @@ body{
     <div id="dragHint">TRASCINA SULLO<br>SCHERMO PER MUOVERE</div>
     <div class="padbtn fire" id="btnFire" role="button" aria-label="Fuoco">FUOCO</div>
   </div>
-  <div id="hint">&#9664; &#9654; &#9650; &#9660; MUOVI &nbsp;·&nbsp; SPAZIO SPARA (TIENI PREMUTO) &nbsp;·&nbsp; P PAUSA &nbsp;·&nbsp; M AUDIO &nbsp;·&nbsp; L SUONO LASER</div>
+  <div id="hint">&#9664; &#9654; &#9650; &#9660; MUOVI &nbsp;·&nbsp; SPAZIO SPARA (TIENI PREMUTO) &nbsp;·&nbsp; P PAUSA &nbsp;·&nbsp; M AUDIO &nbsp;·&nbsp; L SUONO LASER &nbsp;·&nbsp; C CLASSIFICA</div>
 </div>
 
 <script>
@@ -659,6 +659,10 @@ let entryKb = false;       // il cursore compare solo se si usa la tastiera
 let entryIdle = 0;         // conferma da sola se il giocatore si distrae
 let entryRank = -1;        // posizione conquistata, da evidenziare in classifica
 
+/* pulsante CLASSIFICA nella schermata di avvio */
+const ATTRACT_BTN = { x: 73, y: 262, w: 110, h: 20 };
+let scoresFromAttract = false;   // aperta a mano: resta piu a lungo
+
 /* ============ Stato di gioco ============ */
 const ST = { BOOT:0, ATTRACT:1, INTRO:2, PLAY:3, DYING:4, GAMEOVER:5, ENTRY:6, SCORES:7 };
 let state = ST.BOOT;
@@ -915,9 +919,19 @@ function update(dt){
       break;
 
     case ST.SCORES:
-      if (stateT > 9) setState(ST.ATTRACT);
+      if (stateT > (scoresFromAttract ? 20 : 9)) setState(ST.ATTRACT);
       break;
   }
+}
+
+/* apre la classifica dalla schermata di avvio */
+function showScores(){
+  scoresFromAttract = true;
+  entryRank = -1;
+  netMsg = '';
+  refreshNetScores(true);          // dati freschi appena si apre
+  sfxEntryTick();
+  setState(ST.SCORES);
 }
 
 /* ============ Registrazione del punteggio ============ */
@@ -950,6 +964,7 @@ function entryPick(i){
 }
 function entryConfirm(){
   if (state !== ST.ENTRY) return;
+  scoresFromAttract = false;
   if (!entryName.length) return;                       // serve almeno una lettera
   const rec = { n: (entryName.join('') + '---').slice(0,3), s: score, l: level };
 
@@ -1575,11 +1590,16 @@ function drawBoot(){
   }
 }
 
+/* la schermata di avvio alterna istruzioni (0) e classifica (1) */
+function attractPage(){
+  return (scores.length && Math.floor(stateT/7) % 2 === 1) ? 1 : 0;
+}
+
 function drawAttract(){
   const t = stateT;
 
   /* come nei cabinati, la schermata alterna istruzioni e classifica */
-  if (scores.length && Math.floor(t/7) % 2 === 1){
+  if (attractPage() === 1){
     text('MIGLIORI 10', W/2, 36, COLORS.magenta, 12, 'center');
     text(netOk ? 'CLASSIFICA MONDIALE' : 'SOLO QUESTO DISPOSITIVO', W/2, 54,
          netOk ? COLORS.green : COLORS.dim, 8, 'center');
@@ -1590,18 +1610,18 @@ function drawAttract(){
   }
 
   /* titolo con "aberrazione cromatica" */
-  text('LASER', W/2+2, 56+2, COLORS.magenta, 16, 'center');
-  text('LASER', W/2, 56, COLORS.cyan, 16, 'center');
-  text('INVADERS', W/2+2, 80+2, COLORS.magenta, 16, 'center');
-  text('INVADERS', W/2, 80, COLORS.cyan, 16, 'center');
-  text('GALASSIA 1982', W/2, 106, COLORS.dim, 8, 'center');
+  text('LASER', W/2+2, 44+2, COLORS.magenta, 16, 'center');
+  text('LASER', W/2, 44, COLORS.cyan, 16, 'center');
+  text('INVADERS', W/2+2, 66+2, COLORS.magenta, 16, 'center');
+  text('INVADERS', W/2, 66, COLORS.cyan, 16, 'center');
+  text('GALASSIA 1982', W/2, 90, COLORS.dim, 8, 'center');
 
   /* tabella punti con sprite animati */
   const fr = Math.floor(t*2) % 2;
   const rows = [
-    ['dart',  COLORS.cyan,    '50 PUNTI',  128],
-    ['wing',  COLORS.magenta, '100 PUNTI', 148],
-    ['heavy', COLORS.amber,   '150 PUNTI', 168]
+    ['dart',  COLORS.cyan,    '50 PUNTI',  112],
+    ['wing',  COLORS.magenta, '100 PUNTI', 130],
+    ['heavy', COLORS.amber,   '150 PUNTI', 148]
   ];
   for (const [name, col, label, y] of rows){
     const sp = sprite(name, fr, col);
@@ -1609,7 +1629,7 @@ function drawAttract(){
     text('= '+label, W/2-36, y, col, 8);
   }
   /* riga capsula [P] */
-  const py = 188;
+  const py = 168;
   cx.fillStyle = '#03140a';
   cx.fillRect(W/2-52-5, py-1, 11, 11);
   cx.strokeStyle = COLORS.green;
@@ -1620,15 +1640,23 @@ function drawAttract(){
 
   /* il mostro che aspetta alla fine di ogni livello */
   cx.drawImage(sprite('boss', fr, Math.floor(t*2) % 2 ? COLORS.red : COLORS.amber),
-               Math.round(W/2 - BOSS_W/2), 214, BOSS_W, BOSS_H);
-  text('MOSTRO OGNI 5 LIVELLI', W/2, 250, COLORS.red, 8, 'center');
+               Math.round(W/2 - BOSS_W/2), 198, BOSS_W, BOSS_H);
+  text('MOSTRO OGNI 5 LIVELLI', W/2, 228, COLORS.red, 8, 'center');
 
   /* invito lampeggiante */
   if (Math.floor(t*2) % 2 === 0){
-    text(isTouch ? 'TOCCA PER GIOCARE' : 'PREMI START', W/2, 268, COLORS.white, 8, 'center');
+    text(isTouch ? 'TOCCA PER GIOCARE' : 'PREMI START', W/2, 246, COLORS.white, 8, 'center');
   }
-  text('RECORD '+pad6(hiscore), W/2, 285, COLORS.amber, 8, 'center');
-  text('(C) 1982 BACCHIN CORP.', W/2, 302, COLORS.dim, 8, 'center');
+  /* pulsante per aprire la classifica */
+  const bt = ATTRACT_BTN;
+  cx.fillStyle = 'rgba(255,61,240,0.10)';
+  cx.fillRect(bt.x+1, bt.y+1, bt.w-2, bt.h-2);
+  cx.strokeStyle = COLORS.magenta;
+  cx.strokeRect(bt.x+0.5, bt.y+0.5, bt.w-1, bt.h-1);
+  text('CLASSIFICA', W/2, bt.y+7, COLORS.magenta, 8, 'center');
+
+  text('RECORD '+pad6(hiscore), W/2, 288, COLORS.amber, 8, 'center');
+  text('(C) 1982 BACCHIN CORP.', W/2, 304, COLORS.dim, 8, 'center');
 }
 
 /* ---- schermata di registrazione delle iniziali ---- */
@@ -1754,6 +1782,7 @@ addEventListener('keydown', e => {
     case 'KeyP': togglePause(); break;
     case 'KeyM': setMuted(!muted); break;
     case 'KeyL': cycleLaserSfx(); break;
+    case 'KeyC': if (state === ST.ATTRACT) showScores(); break;
   }
 });
 addEventListener('keyup', e => {
@@ -1777,6 +1806,15 @@ let dragId = null, dragLastX = 0, dragLastY = 0;
 screenEl.addEventListener('pointerdown', e => {
   audioResume();
   if (state === ST.ENTRY){ entryTap(e); return; }
+  if (state === ST.ATTRACT && attractPage() === 0){
+    const r = cv.getBoundingClientRect();
+    const px = (e.clientX - r.left) / r.width * W;
+    const py = (e.clientY - r.top) / r.height * H;
+    if (px >= ATTRACT_BTN.x && px <= ATTRACT_BTN.x + ATTRACT_BTN.w &&
+        py >= ATTRACT_BTN.y && py <= ATTRACT_BTN.y + ATTRACT_BTN.h){
+      audioResume(); showScores(); return;
+    }
+  }
   if (state === ST.ATTRACT || state === ST.GAMEOVER || state === ST.SCORES){ anyStart(); return; }
   if (paused){ togglePause(false); return; }
   if (e.pointerType !== 'mouse' && dragId === null){
@@ -1925,6 +1963,9 @@ window.__dbg = {
   forceBoss(){ killsThisLevel = KILLS_PER_LEVEL; },
   setLevel(n){ level = n; killsThisLevel = 0; boss = null; bossWarn = 0; },
   get bossSize(){ return { w: BOSS_W, h: BOSS_H }; },
+  get attractPage(){ return attractPage(); },
+  get stateT(){ return stateT; },
+  get btn(){ return ATTRACT_BTN; },
   setInvuln(n){ player.invuln = n; },
   trackBoss(q){ if (boss){ player.x = boss.x; player.y = q; } player.invuln = 999;
                 if (player.cool <= 0) fireLaser(); },

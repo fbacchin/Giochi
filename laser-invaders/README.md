@@ -28,8 +28,9 @@ dipendenze, niente build, funziona anche offline.
 - **Classifica mondiale condivisa**: a fine partita, se rientri nei migliori 10, registri
   le tue **iniziali di 3 lettere** — si scrivono da tastiera oppure toccando l'alfabeto
   sullo schermo, con `<` per cancellare. La tabella dei **migliori 10** è la stessa per
-  tutti i giocatori: scorre nella schermata iniziale alternandosi alle istruzioni, come
-  nei cabinati veri. Senza rete il gioco continua con la classifica del dispositivo e
+  tutti i giocatori: la apri quando vuoi col pulsante **CLASSIFICA** nella schermata di
+  avvio (o col tasto **C**), e scorre da sola alternandosi alle istruzioni come nei
+  cabinati veri. Senza rete il gioco continua con la classifica del dispositivo e
   spedisce il punteggio da solo appena la connessione torna.
 
 ## Le astronavi
