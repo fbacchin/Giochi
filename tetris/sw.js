@@ -1,5 +1,7 @@
-/* Service worker: cache-first per giocare offline */
-const CACHE = 'giochi-tetris-v1';
+/* Service worker: la pagina si aggiorna da sola, il gioco resta giocabile senza rete.
+   La versione della cache è un'impronta del contenuto, allineata da aggiorna-cache.sh:
+   cambia a ogni modifica del gioco, così la copia vecchia non resta mai sul dispositivo. */
+const CACHE = 'giochi-tetris-5cfe4a285e';
 const ASSETS = ['.', 'index.html', 'manifest.webmanifest', 'icon-180.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {
@@ -16,14 +18,39 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
-  if (new URL(e.request.url).origin !== location.origin) return;
+  const url = new URL(e.request.url);
+  if (url.origin !== location.origin) return;
+
+  const isPagina = e.request.mode === 'navigate' ||
+                   url.pathname.endsWith('/') ||
+                   url.pathname.endsWith('index.html');
+
+  if (isPagina) {
+    /* la pagina arriva dalla rete quando c'è: le modifiche si vedono al primo caricamento,
+       e senza rete si ripiega sulla copia salvata */
+    e.respondWith(
+      fetch(e.request)
+        .then(res => {
+          if (res.ok) {
+            const copia = res.clone();
+            caches.open(CACHE).then(c => c.put(e.request, copia));
+          }
+          return res;
+        })
+        .catch(() => caches.match(e.request, { ignoreSearch: true })
+          .then(hit => hit || caches.match('index.html')))
+    );
+    return;
+  }
+
+  /* icone e manifest: prima la copia salvata, cambiano solo con la versione della cache */
   e.respondWith(
     caches.match(e.request, { ignoreSearch: true }).then(hit =>
       hit ||
       fetch(e.request).then(res => {
         if (res.ok) {
-          const copy = res.clone();
-          caches.open(CACHE).then(c => c.put(e.request, copy));
+          const copia = res.clone();
+          caches.open(CACHE).then(c => c.put(e.request, copia));
         }
         return res;
       })
