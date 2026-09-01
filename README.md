@@ -10,6 +10,5 @@ Repo per i giochi
 
 ## Pubblicazione
 
-Il sito è servito da GitHub Pages dal ramo `main`, cartella radice: un push su `main` e
-il sito si aggiorna da solo. Il ramo `gh-pages` è un residuo della vecchia
-configurazione e non serve più a niente.
+Il sito è servito da GitHub Pages dal ramo `main`, cartella radice: si spinge su `main`
+e il sito si aggiorna da solo, senza altri passaggi.
