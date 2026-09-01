@@ -10,6 +10,6 @@ Repo per i giochi
 
 ## Pubblicazione
 
-Il sito è servito da GitHub Pages dal ramo `gh-pages`. Non serve toccarlo: a ogni push
-su `main` il lavoro [`Pubblica il sito`](.github/workflows/pubblica.yml) allinea `gh-pages`
-da solo. Si spinge su `main` e basta.
+Il sito è servito da GitHub Pages dal ramo `main`, cartella radice: un push su `main` e
+il sito si aggiorna da solo. Il ramo `gh-pages` è un residuo della vecchia
+configurazione e non serve più a niente.
