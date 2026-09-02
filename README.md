@@ -19,8 +19,9 @@ già aperto il gioco continuano a vedere la copia salvata:
 ./aggiorna-cache.sh tetris   # un gioco solo
 ```
 
-La versione è un'impronta del contenuto, quindi cambia solo quando il gioco cambia
-davvero. In Tetris la pagina viene inoltre richiesta alla rete quando c'è, così una
+La versione è un'impronta del contenuto, quindi cambia solo quando cambia davvero
+ciò che viene servito al giocatore: modificare un README non tocca la cache e non
+fa riscaricare nulla ai dispositivi. In Tetris la pagina viene inoltre richiesta alla rete quando c'è, così una
 modifica pubblicata si vede già al primo caricamento.
 
 ## Pubblicazione

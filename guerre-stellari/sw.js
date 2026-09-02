@@ -1,7 +1,7 @@
 /* Service worker: la pagina si aggiorna da sola, il gioco resta giocabile senza rete.
    La versione della cache è un'impronta del contenuto, allineata da aggiorna-cache.sh:
    cambia a ogni modifica del gioco, così la copia vecchia non resta mai sul dispositivo. */
-const CACHE = 'giochi-guerre-stellari-8133369bf0';
+const CACHE = 'giochi-guerre-stellari-a927d4fa00';
 const ASSETS = ['.', 'index.html', 'game.js', 'manifest.webmanifest', 'icon-180.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {
