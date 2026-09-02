@@ -1,7 +1,7 @@
 /* Service worker: la pagina si aggiorna da sola, il gioco resta giocabile senza rete.
    La versione della cache è un'impronta del contenuto, allineata da aggiorna-cache.sh:
    cambia a ogni modifica del gioco, così la copia vecchia non resta mai sul dispositivo. */
-const CACHE = 'giochi-laser-invaders-8355e557d5';
+const CACHE = 'giochi-laser-invaders-8a72c4eecf';
 const ASSETS = ['.', 'index.html', 'manifest.webmanifest', 'icon-180.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {

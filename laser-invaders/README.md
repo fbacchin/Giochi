@@ -94,5 +94,5 @@ Per aggiungere un altro gioco alla stessa classifica basta usare un valore diver
 | --- | --- |
 | `index.html` | Tutto il gioco: markup, CSS CRT, motore, sprite, audio |
 | `manifest.webmanifest` | Metadati PWA (nome, icone, fullscreen, orientamento) |
-| `sw.js` | Service worker cache-first per l'uso offline |
+| `sw.js` | Service worker: pagina sempre dalla rete quando c'è, copia salvata per giocare offline |
 | `icon-180.png` / `icon-512.png` | Icone per home screen e install |
