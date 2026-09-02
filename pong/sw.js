@@ -1,7 +1,7 @@
 /* Service worker: la pagina si aggiorna da sola, il gioco resta giocabile senza rete.
    La versione della cache è un'impronta del contenuto, allineata da aggiorna-cache.sh:
    cambia a ogni modifica del gioco, così la copia vecchia non resta mai sul dispositivo. */
-const CACHE = 'giochi-pong-56330913ed';
+const CACHE = 'giochi-pong-3967407e03';
 const ASSETS = ['.', 'index.html', 'manifest.webmanifest',
                 'icon-32.png', 'icon-180.png', 'icon-192.png',
                 'icon-512.png', 'icon-maskable-512.png'];
