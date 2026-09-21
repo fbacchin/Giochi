@@ -3,10 +3,10 @@ Repo per i giochi
 
 | Gioco | Cartella | Gioca |
 |---|---|---|
-| Assalto alla Morte Nera | [`guerre-stellari/`](guerre-stellari/) | https://fbacchin.github.io/Giochi/guerre-stellari/ |
-| Laser Invaders | [`laser-invaders/`](laser-invaders/) | https://fbacchin.github.io/Giochi/laser-invaders/ |
-| Pong | [`pong/`](pong/) | https://fbacchin.github.io/Giochi/pong/ |
-| Tetris | [`tetris/`](tetris/) | https://fbacchin.github.io/Giochi/tetris/ |
+| Assalto alla Morte Nera | [`guerre-stellari/`](guerre-stellari/) | https://giochi.bacchin.app/guerre-stellari/ |
+| Laser Invaders | [`laser-invaders/`](laser-invaders/) | https://giochi.bacchin.app/laser-invaders/ |
+| Pong | [`pong/`](pong/) | https://giochi.bacchin.app/pong/ |
+| Tetris | [`tetris/`](tetris/) | https://giochi.bacchin.app/tetris/ |
 
 ## Versione della cache
 
@@ -28,3 +28,8 @@ modifica pubblicata si vede già al primo caricamento.
 
 Il sito è servito da GitHub Pages dal ramo `main`, cartella radice: si spinge su `main`
 e il sito si aggiorna da solo, senza altri passaggi.
+
+
+## Indirizzi
+
+Dal 21 settembre 2026 i giochi sono su **https://giochi.bacchin.app** (Cloudflare Pages, pubblica da questo repository a ogni push su `main`). Restano raggiungibili anche su `https://fbacchin.github.io/Giochi/`: chi li ha installati sulla schermata Home da lì continua a usare quell'indirizzo, e il record di Assalto alla Morte Nera resta salvato su quel dominio.
