@@ -32,4 +32,4 @@ e il sito si aggiorna da solo, senza altri passaggi.
 
 ## Indirizzi
 
-Dal 21 settembre 2026 i giochi sono su **https://giochi.bacchin.app** (Cloudflare Pages, pubblica da questo repository a ogni push su `main`). Restano raggiungibili anche su `https://fbacchin.github.io/Giochi/`: chi li ha installati sulla schermata Home da lì continua a usare quell'indirizzo, e il record di Assalto alla Morte Nera resta salvato su quel dominio.
+Dal 21 settembre 2026 i giochi sono su **https://giochi.bacchin.app** (progetto Cloudflare Pages `bacchin-giochi`, che pubblica da questo repository a ogni push su `main`). Restano raggiungibili anche su `https://fbacchin.github.io/Giochi/`: chi li ha installati sulla schermata Home da lì continua a usare quell'indirizzo, e il record di Assalto alla Morte Nera resta salvato su quel dominio.
