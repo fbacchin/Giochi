@@ -525,17 +525,18 @@ function sfxBossDeath(){
    I passi sono crome e 0 e una pausa; ogni tema ha la sua lunghezza. */
 const MUSICA = {
   normale: {
-    /* quattro battute: la seconda meta cambia contorno, cosi il giro non
-       diventa una filastrocca quando la partita va per le lunghe */
-    canto: [440, 0, 523, 659, 880, 0, 659, 523, 349, 0, 440, 523, 392, 0, 494, 587,
-            659, 0, 880, 659, 523, 0, 440, 523, 587, 0, 523, 494, 440, 0, 494,   0],
-    basso: [110, 0, 165,   0, 110, 0, 165,   0,  87, 0, 131,   0,  98, 0, 147,   0,
-            110, 0, 165,   0, 110, 0, 165,   0,  87, 0, 131,   0,  82, 0, 123,   0]
+    /* mi frigio: il fa naturale appoggiato sul mi e la nota che mette
+       inquietudine. Niente melodia saltellante: un basso motore che non si
+       ferma mai e pochi segnali radi sopra, come un radar che avverte. */
+    canto: [330,  0,  0,  0, 349,  0,  0,  0, 330,  0,  0,  0, 247,  0,  0,  0,
+            330,  0,  0,  0, 392,  0, 349,  0, 330,  0, 294,  0, 247,  0,  0,  0],
+    basso: [ 82, 82, 82, 82,  82, 82, 87, 82,  82, 82, 82, 82,  98, 98, 87, 87,
+             82, 82, 82, 82,  82, 82, 87, 82,  73, 73, 82, 82,  87, 87, 98, 98]
   },
   mostro: {
-    /* stilettate acute che salgono, su un basso martellante in salita */
-    canto: [659, 0, 0, 0, 698, 0, 0, 0, 740, 0, 0, 0, 784, 0, 0, 0],
-    basso: [110, 110, 110, 110, 117, 117, 117, 117, 123, 123, 123, 123, 131, 131, 131, 131]
+    /* la minaccia sale di semitono in semitono, bassa e pesante */
+    canto: [330, 0, 0, 0, 349, 0, 0, 0, 370, 0, 0, 0, 392, 0, 0, 0],
+    basso: [ 82,82,82,82,  87,87,87,87,  92,92,92,92,  98,98,98,98]
   }
 };
 let musicaPasso = 0, musicaT = 0;
@@ -546,13 +547,13 @@ function musicaTick(dt){
   const inLotta = !!boss;
   const brano = inLotta ? MUSICA.mostro : MUSICA.normale;
   /* il tempo accelera col livello, senza mai diventare frenetico */
-  const passo = Math.max(0.11, (inLotta ? 0.15 : 0.19) - level*0.004);
+  const passo = Math.max(0.12, (inLotta ? 0.16 : 0.20) - level*0.004);
   musicaT = passo;
   const i = musicaPasso % brano.canto.length;
   const c = brano.canto[i], b = brano.basso[i];
   /* volumi bassi: la musica sta sotto agli spari, non li copre */
-  if (c) tone('square',   c, c, passo*1.7, 0.075);
-  if (b) tone('triangle', b, b, passo*1.9, 0.10);
+  if (c) tone('square',   c, c, passo*2.2, 0.065);   // segnale rado, lungo
+  if (b) tone('triangle', b, b, passo*1.5, 0.115);  // basso motore, secco
   musicaPasso++;
 }
 
