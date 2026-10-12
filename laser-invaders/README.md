@@ -47,11 +47,12 @@ dipendenze, niente build, funziona anche offline.
 - Audio 100% sintetizzato con Web Audio API, con le tre voci di un chip a 8 bit:
   **colonna sonora chiptune** in stile Space Invaders — basso ipnotico di quattro note
   discendenti (onda triangolare), melodia a **onda quadra** che entra a metà giro,
-  **percussione di solo rumore bianco** — con il **tempo che accelera progressivamente**
-  man mano che svuoti il livello e sali di livello (da ~100 a ~180 BPM), e un tema più
-  cupo e martellante quando arriva il mostro. Più esplosioni e **4 timbri per il laser**
+  **percussione di solo rumore bianco**. L'andatura normale è sempre la stessa; quando
+  arriva il mostro parte un tema più cupo e **nettamente più veloce**.
+  La **musica si può spegnere da sola** col pulsante MUSICA (o il tasto N) tenendo gli
+  effetti, mentre AUDIO (tasto M) zittisce tutto. Ci sono anche **4 timbri per il laser**
   selezionabili in gioco (pulsante in alto o tasto L): **RETRO ZAP**, **SYNTH SWEEP**,
-  **UI CLICK**, **8BIT SHOOT**. La scelta resta salvata sul dispositivo.
+  **UI CLICK**, **8BIT SHOOT**. Ogni scelta resta salvata sul dispositivo.
 - Font pixel (Press Start 2P) incorporato in base64: nessuna richiesta esterna.
 - PWA completa: manifest, service worker, icone — installabile e giocabile offline.
 

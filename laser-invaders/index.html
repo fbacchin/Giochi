@@ -99,7 +99,9 @@ body{
 }
 
 /* ============ Pulsanti servizio (audio / pausa) ============ */
-#sysbtns{position:absolute;top:2px;right:2px;display:flex;gap:6px;z-index:5;flex-wrap:wrap;justify-content:flex-end;max-width:100%}
+/* barra dei comandi: sta sopra al quadro, mai addosso. Se i pulsanti non
+   ci stanno vanno a capo e il quadro si restringe, invece di finirci sotto. */
+#sysbtns{flex:none;align-self:stretch;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 .sysbtn{
   font-family:var(--px);font-size:8px;letter-spacing:1px;
   color:#7f8ab0;background:rgba(8,10,20,.75);
@@ -108,6 +110,11 @@ body{
 }
 .sysbtn:active{color:var(--cyan);border-color:var(--cyan)}
 .sysbtn:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+/* su schermi stretti si stringono, per restare su una riga sola */
+@media (max-width:560px){
+  .sysbtn{padding:7px 5px;letter-spacing:0}
+  #sysbtns{gap:4px}
+}
 
 /* ============ Controlli touch ============ */
 #controls{
@@ -155,6 +162,12 @@ body{
 <body>
 <div id="cabinet">
   <div id="marquee">LASER INVADERS<small>GALASSIA · 1982</small></div>
+  <div id="sysbtns">
+    <button class="sysbtn" id="btnLaserSfx" aria-label="Cambia il suono del laser">SYNTH SWEEP</button>
+    <button class="sysbtn" id="btnMusica" aria-label="Attiva o disattiva la musica">MUSICA ON</button>
+    <button class="sysbtn" id="btnSound" aria-label="Attiva o disattiva tutto l'audio">AUDIO ON</button>
+    <button class="sysbtn" id="btnPause" aria-label="Pausa">PAUSA</button>
+  </div>
   <div id="stage">
     <div id="screen">
       <canvas id="game" width="256" height="320"></canvas>
@@ -163,17 +176,12 @@ body{
       <div class="fx vignette"></div>
       <div class="fx flicker"></div>
     </div>
-    <div id="sysbtns">
-      <button class="sysbtn" id="btnLaserSfx" aria-label="Cambia il suono del laser">SYNTH SWEEP</button>
-      <button class="sysbtn" id="btnSound" aria-label="Attiva o disattiva audio">AUDIO ON</button>
-      <button class="sysbtn" id="btnPause" aria-label="Pausa">PAUSA</button>
-    </div>
   </div>
   <div id="controls">
     <div id="dragHint">TRASCINA SULLO<br>SCHERMO PER MUOVERE</div>
     <div class="padbtn fire" id="btnFire" role="button" aria-label="Fuoco">FUOCO</div>
   </div>
-  <div id="hint">&#9664; &#9654; &#9650; &#9660; MUOVI &nbsp;·&nbsp; SPAZIO SPARA (TIENI PREMUTO) &nbsp;·&nbsp; P PAUSA &nbsp;·&nbsp; M AUDIO &nbsp;·&nbsp; L SUONO LASER &nbsp;·&nbsp; C CLASSIFICA</div>
+  <div id="hint">&#9664; &#9654; &#9650; &#9660; MUOVI &nbsp;·&nbsp; SPAZIO SPARA (TIENI PREMUTO) &nbsp;·&nbsp; P PAUSA &nbsp;·&nbsp; M AUDIO &nbsp;·&nbsp; L SUONO LASER &nbsp;·&nbsp; C CLASSIFICA &nbsp;·&nbsp; N MUSICA</div>
 </div>
 
 <script>
@@ -544,18 +552,17 @@ const MUSICA = {
   }
 };
 let musicaPasso = 0, musicaT = 0;
+let musicaSpenta = storeGet('li_musica') === 'off';   // si puo zittire la sola musica
 
 function musicaTick(dt){
+  if (musicaSpenta) return;            // gli spari e le esplosioni continuano
   musicaT -= dt;
   if (musicaT > 0) return;
   const inLotta = !!boss;
   const brano = inLotta ? MUSICA.mostro : MUSICA.normale;
-  /* il tempo incalza mentre il livello si svuota, come nei cabinati veri:
-     piu astronavi abbatti, piu la musica corre; e piu sale il livello, piu
-     si parte gia veloci. */
-  const avanzamento = Math.min(1, killsThisLevel / KILLS_PER_LEVEL);
-  const base = inLotta ? 0.105 : 0.145 - avanzamento*0.048;
-  const passo = Math.max(0.070, base - level*0.003);
+  /* andatura fissa: quella normale non cambia mai, cosi non stanca; col
+     mostro parte un tempo nettamente piu serrato, che si sente subito. */
+  const passo = inLotta ? 0.085 : 0.14;
   musicaT = passo;
   const i = musicaPasso % brano.basso.length;
   const c = brano.canto[i], b = brano.basso[i], pc = brano.perc[i];
@@ -1821,6 +1828,7 @@ addEventListener('keydown', e => {
     case 'KeyM': setMuted(!muted); break;
     case 'KeyL': cycleLaserSfx(); break;
     case 'KeyC': if (state === ST.ATTRACT) showScores(); break;
+    case 'KeyN': toggleMusica(); break;
   }
 });
 addEventListener('keyup', e => {
@@ -1908,10 +1916,21 @@ holdButton(document.getElementById('btnFire'), 'fire');
 const btnSound = document.getElementById('btnSound');
 const btnPause = document.getElementById('btnPause');
 const btnLaserSfx = document.getElementById('btnLaserSfx');
+const btnMusica = document.getElementById('btnMusica');
+btnMusica.textContent = musicaSpenta ? 'MUSICA OFF' : 'MUSICA ON';
+btnMusica.addEventListener('click', toggleMusica);
 btnSound.textContent = muted ? 'AUDIO OFF' : 'AUDIO ON';
 btnLaserSfx.textContent = LASER_SFX[laserSfx];
 btnSound.addEventListener('click', () => { audioResume(); setMuted(!muted); });
 btnPause.addEventListener('click', () => togglePause());
+
+function toggleMusica(){
+  musicaSpenta = !musicaSpenta;
+  storeSet('li_musica', musicaSpenta ? 'off' : 'on');
+  btnMusica.textContent = musicaSpenta ? 'MUSICA OFF' : 'MUSICA ON';
+  audioResume();
+  if (!musicaSpenta) musicaT = 0;      // riparte subito, senza aspettare il passo
+}
 
 function cycleLaserSfx(){
   laserSfx = (laserSfx + 1) % LASER_SFX.length;
@@ -2003,6 +2022,7 @@ window.__dbg = {
   get bossSize(){ return { w: BOSS_W, h: BOSS_H }; },
   get musica(){ return { passo: musicaPasso, tema: boss ? 'mostro' : 'normale' }; },
   setKills(n){ killsThisLevel = n; },
+  get musicaSpenta(){ return musicaSpenta; },
   get attractPage(){ return attractPage(); },
   get stateT(){ return stateT; },
   get btn(){ return ATTRACT_BTN; },
