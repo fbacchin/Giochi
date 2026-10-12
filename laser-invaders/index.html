@@ -525,18 +525,22 @@ function sfxBossDeath(){
    I passi sono crome e 0 e una pausa; ogni tema ha la sua lunghezza. */
 const MUSICA = {
   normale: {
-    /* mi frigio: il fa naturale appoggiato sul mi e la nota che mette
-       inquietudine. Niente melodia saltellante: un basso motore che non si
-       ferma mai e pochi segnali radi sopra, come un radar che avverte. */
-    canto: [330,  0,  0,  0, 349,  0,  0,  0, 330,  0,  0,  0, 247,  0,  0,  0,
-            330,  0,  0,  0, 392,  0, 349,  0, 330,  0, 294,  0, 247,  0,  0,  0],
-    basso: [ 82, 82, 82, 82,  82, 82, 87, 82,  82, 82, 82, 82,  98, 98, 87, 87,
-             82, 82, 82, 82,  82, 82, 87, 82,  73, 73, 82, 82,  87, 87, 98, 98]
+    /* basso ipnotico: quattro note che scendono senza mai fermarsi, il giro
+       dei cabinati del '78. Il canto entra solo nella seconda meta, cosi la
+       prima resta nuda e crea attesa. 'h' e un colpetto secco, 's' uno
+       schiocco piu largo: percussione di solo rumore bianco. */
+    basso: [110,   0,  98,   0,  87,   0,  82,   0, 110,   0,  98,   0,  87,   0,  82,   0,
+            110,   0,  98,   0,  87,   0,  82,   0, 110,   0,  98,   0,  87,   0,  82,   0],
+    canto: [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+            330,   0, 294,   0, 262,   0, 247,   0, 330,   0, 392,   0, 349,   0, 330,   0],
+    perc:  ['h',   0, 'h',   0, 's',   0, 'h',   0, 'h',   0, 'h',   0, 's',   0, 'h',   0,
+            'h',   0, 'h',   0, 's',   0, 'h',   0, 'h',   0, 'h',   0, 's',   0, 'h',   0]
   },
   mostro: {
-    /* la minaccia sale di semitono in semitono, bassa e pesante */
-    canto: [330, 0, 0, 0, 349, 0, 0, 0, 370, 0, 0, 0, 392, 0, 0, 0],
-    basso: [ 82,82,82,82,  87,87,87,87,  92,92,92,92,  98,98,98,98]
+    /* il basso serpeggia su e giu di semitono, la percussione martella */
+    basso: [ 82,  82,  87,  87,  92,  92,  98,  98,  98,  98,  92,  92,  87,  87,  82,  82],
+    canto: [330,   0,   0,   0, 349,   0,   0,   0, 370,   0,   0,   0, 392,   0,   0,   0],
+    perc:  ['h', 'h', 'h', 'h', 's', 'h', 'h', 'h', 'h', 'h', 'h', 'h', 's', 'h', 'h', 'h']
   }
 };
 let musicaPasso = 0, musicaT = 0;
@@ -546,14 +550,20 @@ function musicaTick(dt){
   if (musicaT > 0) return;
   const inLotta = !!boss;
   const brano = inLotta ? MUSICA.mostro : MUSICA.normale;
-  /* il tempo accelera col livello, senza mai diventare frenetico */
-  const passo = Math.max(0.12, (inLotta ? 0.16 : 0.20) - level*0.004);
+  /* il tempo incalza mentre il livello si svuota, come nei cabinati veri:
+     piu astronavi abbatti, piu la musica corre; e piu sale il livello, piu
+     si parte gia veloci. */
+  const avanzamento = Math.min(1, killsThisLevel / KILLS_PER_LEVEL);
+  const base = inLotta ? 0.105 : 0.145 - avanzamento*0.048;
+  const passo = Math.max(0.070, base - level*0.003);
   musicaT = passo;
-  const i = musicaPasso % brano.canto.length;
-  const c = brano.canto[i], b = brano.basso[i];
-  /* volumi bassi: la musica sta sotto agli spari, non li copre */
-  if (c) tone('square',   c, c, passo*2.2, 0.065);   // segnale rado, lungo
-  if (b) tone('triangle', b, b, passo*1.5, 0.115);  // basso motore, secco
+  const i = musicaPasso % brano.basso.length;
+  const c = brano.canto[i], b = brano.basso[i], pc = brano.perc[i];
+  /* le tre voci di un chip a 8 bit: onda quadra, triangolare, rumore */
+  if (c) tone('square',   c, c, passo*2.0, 0.07);
+  if (b) tone('triangle', b, b, passo*1.6, 0.115);
+  if (pc === 'h') noise(0.025, 7000, 0.045, 'highpass');   // colpetto secco
+  if (pc === 's') noise(0.085, 1800, 0.090, 'bandpass');   // schiocco
   musicaPasso++;
 }
 
@@ -1992,6 +2002,7 @@ window.__dbg = {
   setLevel(n){ level = n; killsThisLevel = 0; boss = null; bossWarn = 0; },
   get bossSize(){ return { w: BOSS_W, h: BOSS_H }; },
   get musica(){ return { passo: musicaPasso, tema: boss ? 'mostro' : 'normale' }; },
+  setKills(n){ killsThisLevel = n; },
   get attractPage(){ return attractPage(); },
   get stateT(){ return stateT; },
   get btn(){ return ATTRACT_BTN; },

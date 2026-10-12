@@ -44,12 +44,14 @@ dipendenze, niente build, funziona anche offline.
 ## Caratteristiche
 
 - Estetica CRT autentica: scanline, maschera RGB, vignettatura, accensione del tubo catodico.
-- Audio 100% sintetizzato con Web Audio API: una **musichetta chiptune** di sottofondo in stile
-  cabinato (mi frigio: un basso motore che non si ferma mai e pochi segnali radi sopra,
-  che accelera col livello e lascia il posto a un tema più cupo quando arriva il mostro), esplosioni, e **4 timbri per il laser** selezionabili in gioco (pulsante in alto o tasto L):
-  **RETRO ZAP** (quadra graffiante da cabinato), **SYNTH SWEEP** (il "fiu fiu" morbido alla
-  "I Don't Feel Like Dancin'" degli Scissor Sisters), **UI CLICK** (tick sci-fi brevissimo),
-  **8BIT SHOOT** (chip a gradini stile NES). La scelta resta salvata sul dispositivo.
+- Audio 100% sintetizzato con Web Audio API, con le tre voci di un chip a 8 bit:
+  **colonna sonora chiptune** in stile Space Invaders — basso ipnotico di quattro note
+  discendenti (onda triangolare), melodia a **onda quadra** che entra a metà giro,
+  **percussione di solo rumore bianco** — con il **tempo che accelera progressivamente**
+  man mano che svuoti il livello e sali di livello (da ~100 a ~180 BPM), e un tema più
+  cupo e martellante quando arriva il mostro. Più esplosioni e **4 timbri per il laser**
+  selezionabili in gioco (pulsante in alto o tasto L): **RETRO ZAP**, **SYNTH SWEEP**,
+  **UI CLICK**, **8BIT SHOOT**. La scelta resta salvata sul dispositivo.
 - Font pixel (Press Start 2P) incorporato in base64: nessuna richiesta esterna.
 - PWA completa: manifest, service worker, icone — installabile e giocabile offline.
 
