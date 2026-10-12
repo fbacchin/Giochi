@@ -518,9 +518,42 @@ function sfxBossDeath(){
   tone('sawtooth', 190, 24, 1.4, 0.42);
   [130, 104, 82, 62].forEach((f,i) => tone('square', f, f*0.6, 0.34, 0.24, i*0.26));
 }
-/* battito di fondo che accompagna il gioco */
-function sfxPulse(alt){
-  tone('triangle', alt ? 82 : 74, 0, 0.07, 0.13);
+/* ---- musichetta di sottofondo ----
+   Un giro chiptune di due battute in la minore (Am - Am - Fa - Sol) con il
+   basso che cammina sotto la melodia; quando arriva il mostro cambia tema e
+   si fa incalzante, con il basso che sale di semitono in semitono.
+   I passi sono crome e 0 e una pausa; ogni tema ha la sua lunghezza. */
+const MUSICA = {
+  normale: {
+    /* quattro battute: la seconda meta cambia contorno, cosi il giro non
+       diventa una filastrocca quando la partita va per le lunghe */
+    canto: [440, 0, 523, 659, 880, 0, 659, 523, 349, 0, 440, 523, 392, 0, 494, 587,
+            659, 0, 880, 659, 523, 0, 440, 523, 587, 0, 523, 494, 440, 0, 494,   0],
+    basso: [110, 0, 165,   0, 110, 0, 165,   0,  87, 0, 131,   0,  98, 0, 147,   0,
+            110, 0, 165,   0, 110, 0, 165,   0,  87, 0, 131,   0,  82, 0, 123,   0]
+  },
+  mostro: {
+    /* stilettate acute che salgono, su un basso martellante in salita */
+    canto: [659, 0, 0, 0, 698, 0, 0, 0, 740, 0, 0, 0, 784, 0, 0, 0],
+    basso: [110, 110, 110, 110, 117, 117, 117, 117, 123, 123, 123, 123, 131, 131, 131, 131]
+  }
+};
+let musicaPasso = 0, musicaT = 0;
+
+function musicaTick(dt){
+  musicaT -= dt;
+  if (musicaT > 0) return;
+  const inLotta = !!boss;
+  const brano = inLotta ? MUSICA.mostro : MUSICA.normale;
+  /* il tempo accelera col livello, senza mai diventare frenetico */
+  const passo = Math.max(0.11, (inLotta ? 0.15 : 0.19) - level*0.004);
+  musicaT = passo;
+  const i = musicaPasso % brano.canto.length;
+  const c = brano.canto[i], b = brano.basso[i];
+  /* volumi bassi: la musica sta sotto agli spari, non li copre */
+  if (c) tone('square',   c, c, passo*1.7, 0.075);
+  if (b) tone('triangle', b, b, passo*1.9, 0.10);
+  musicaPasso++;
 }
 
 /* ============ Classifica: i migliori 10, iniziali di 3 lettere ============ */
@@ -719,7 +752,6 @@ let lasers = [];           // colpi del giocatore {x,y,vx}
 let bullets = [];          // colpi nemici {x,y,v}
 let powerups = [];         // capsule [P] {x,y,t}
 let spawnT = 1.0;
-let pulseT = 0, pulseAlt = false;
 let animT = 0;
 
 /* Effetti */
@@ -822,7 +854,8 @@ function startGame(){
   enemies = []; lasers = []; bullets = []; powerups = [];
   particles = []; popups = [];
   boss = null; bossWarn = 0;
-  spawnT = 0.8; pulseT = 0;
+  spawnT = 0.8;
+  musicaPasso = 0; musicaT = 0;      // la musichetta riparte da capo
   player.x = W/2; player.y = PLAYER_Y; player.invuln = 0; player.cool = 0;
   resetDrones();
   setState(ST.INTRO);
@@ -879,10 +912,12 @@ function update(dt){
       break; // si esce con startGame() dall'input
 
     case ST.INTRO:
+      musicaTick(dt);
       if (stateT > 1.6) setState(ST.PLAY);
       break;
 
     case ST.PLAY:
+      musicaTick(dt);
       updatePlay(dt);
       break;
 
@@ -1070,14 +1105,6 @@ function updatePlay(dt){
   if (player.invuln > 0) player.invuln -= dt;
   if (player.cool > 0) player.cool -= dt;
   if ((keys.fire || pad.fire) && player.cool <= 0) fireLaser();
-
-  /* --- battito di fondo --- */
-  pulseT -= dt;
-  if (pulseT <= 0){
-    pulseT = Math.max(0.38, 0.62 - level*0.02);
-    pulseAlt = !pulseAlt;
-    sfxPulse(pulseAlt);
-  }
 
   /* --- arrivo squadriglie (sospese quando arriva il mostro) --- */
   spawnT -= dt;
@@ -1963,6 +1990,7 @@ window.__dbg = {
   forceBoss(){ killsThisLevel = KILLS_PER_LEVEL; },
   setLevel(n){ level = n; killsThisLevel = 0; boss = null; bossWarn = 0; },
   get bossSize(){ return { w: BOSS_W, h: BOSS_H }; },
+  get musica(){ return { passo: musicaPasso, tema: boss ? 'mostro' : 'normale' }; },
   get attractPage(){ return attractPage(); },
   get stateT(){ return stateT; },
   get btn(){ return ATTRACT_BTN; },
