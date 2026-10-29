@@ -6,6 +6,7 @@ Repo per i giochi
 | Assalto alla Morte Nera | [`guerre-stellari/`](guerre-stellari/) | https://giochi.bacchin.app/guerre-stellari/ |
 | Laser Invaders | [`laser-invaders/`](laser-invaders/) | https://giochi.bacchin.app/laser-invaders/ |
 | Pong | [`pong/`](pong/) | https://giochi.bacchin.app/pong/ |
+| Scopa e Scopone | [`scopa/`](scopa/) | https://giochi.bacchin.app/scopa/ |
 | Tetris | [`tetris/`](tetris/) | https://giochi.bacchin.app/tetris/ |
 
 ## Versione della cache

@@ -1,0 +1,17 @@
+{
+  "name": "Scopa e Scopone",
+  "short_name": "Scopa",
+  "description": "Scopa e scopone con le carte napoletane, contro il computer.",
+  "lang": "it",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#11301f",
+  "theme_color": "#11301f",
+  "icons": [
+    { "src": "icon-180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
