@@ -39,7 +39,22 @@ uscite per stimare cosa ha in mano chi gioca dopo.
 
 | File | Ruolo |
 | --- | --- |
-| `index.html` | Tutto il gioco: markup, CSS, carte in SVG, regole e avversari |
+| `index.html` | Tutto il gioco: markup, CSS, regole e avversari |
+| `carte/` | Le 40 carte e il dorso, WebP 320×529 |
 | `manifest.webmanifest` | Metadati PWA |
 | `sw.js` | Service worker per l'uso offline |
 | `icon-180.png` / `icon-512.png` | Icone per home screen e install |
+
+## Le carte
+
+Scansioni del mazzo napoletano pubblicate su Wikimedia Commons da Trocche100
+(it.wikipedia), con licenza dichiarata **pubblico dominio** (`PD-user-it`):
+da «01 Asso di denari.jpg» a «40 Dieci di Bastoni.jpg» e «Carte Napoletane retro.jpg»,
+categoria <https://commons.wikimedia.org/wiki/Category:Naples_deck>.
+Le copie usate qui corrispondono byte per byte agli originali di Commons (SHA-1).
+Modifiche: ridotte a 320×529, portate su un fondo color carta, il dorso ritagliato
+alle proporzioni delle carte e virato in rosso scuro.
+
+Sono scansioni di un mazzo stampato moderno: l'Asso di Denari porta la scritta
+«Dal Negro Treviso». Il disegno napoletano ha secoli, ma il pubblico dominio di
+queste immagini si basa solo sulla dichiarazione di chi le ha caricate.

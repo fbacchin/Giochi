@@ -140,11 +140,11 @@ button { font: inherit; color: inherit; }
 .zone.active .who { color: var(--oro); }
 @keyframes pulse { 50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--oro) 0%, transparent); } }
 
-.backs { display: flex; justify-content: center; min-height: calc(var(--bw) * 1.72); }
+.backs { display: flex; justify-content: center; min-height: calc(var(--bw) * 1.653); }
 .backs .card { width: var(--bw); }
 .backs .card + .card { margin-left: calc(var(--bw) * -0.55); }
 .zone.left .backs, .zone.right .backs { flex-direction: column; align-items: center; }
-.zone.left .backs .card + .card, .zone.right .backs .card + .card { margin-left: 0; margin-top: calc(var(--bw) * -1.38); }
+.zone.left .backs .card + .card, .zone.right .backs .card + .card { margin-left: 0; margin-top: calc(var(--bw) * -1.33); }
 .zone.left .who, .zone.right .who { writing-mode: horizontal-tb; font-size: 11px; }
 
 .felt-table {
@@ -158,7 +158,7 @@ button { font: inherit; color: inherit; }
   justify-content: center;
   padding: 14px;
   overflow: auto;
-  min-height: calc(var(--tw) * 1.72 + 28px);
+  min-height: calc(var(--tw) * 1.653 + 28px);
 }
 .tcards { display: flex; flex-wrap: wrap; justify-content: center; align-content: center; gap: 10px; max-width: 100%; }
 .tcards .card { width: var(--tw); }
@@ -202,7 +202,7 @@ button { font: inherit; color: inherit; }
 /* ---------- carte ---------- */
 .card {
   display: block;
-  aspect-ratio: 100 / 172;
+  aspect-ratio: 1324 / 2188;
   max-width: 100%;
   padding: 0;
   border: 0;
@@ -212,7 +212,17 @@ button { font: inherit; color: inherit; }
   position: relative;
   filter: drop-shadow(0 2px 3px color-mix(in srgb, black 35%, transparent));
 }
-.card svg { display: block; width: 100%; height: 100%; }
+.card img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--paper-edge);
+  border-radius: 7% / 4.3%;
+  background: var(--paper);
+  -webkit-user-drag: none;
+  user-select: none;
+}
 button.card { cursor: pointer; transition: transform .18s ease; }
 button.card:disabled { cursor: default; }
 .hand button.card:not(:disabled):hover { transform: translateY(-8px); }
@@ -231,8 +241,6 @@ button.card:disabled { cursor: default; }
 .card.taken::after { border-color: var(--oro); background: color-mix(in srgb, var(--oro) 22%, transparent); }
 .card.hint::after { border-color: #9fe0ff; border-style: dashed; }
 .flyer { position: fixed; left: 0; top: 0; transform-origin: 0 0; z-index: 60; pointer-events: none; }
-.cv { font-family: var(--f-display); font-weight: 700; font-size: 21px; }
-.fig { font-family: var(--f-body); font-weight: 700; font-size: 10px; letter-spacing: .22em; }
 
 /* ---------- scritta scopa ---------- */
 #toast {
@@ -385,10 +393,6 @@ details.rules b { color: var(--chalk); }
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
-    <pattern id="lattice" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-      <rect width="10" height="10" fill="#7b1d18"/>
-      <path d="M0 5H10M5 0V10" stroke="#e2b24c" stroke-opacity=".45" stroke-width="1.2"/>
-    </pattern>
     <symbol id="s-D" viewBox="0 0 100 100">
       <circle cx="50" cy="50" r="45" fill="#e2b24c" stroke="#7a5410" stroke-width="5"/>
       <circle cx="50" cy="50" r="31" fill="none" stroke="#7a5410" stroke-width="3"/>
@@ -419,13 +423,6 @@ details.rules b { color: var(--chalk); }
         <path d="M44 28Q34 22 31 28Q36 34 44 33Z M57 50Q68 44 71 51Q65 56 57 55Z M45 70Q34 66 32 72Q38 77 46 75Z" fill="#5f8a33" stroke="#2d4a14" stroke-width="2.5"/>
         <path d="M48 14V86" stroke="#3e2410" stroke-width="2" stroke-opacity=".45"/>
       </g>
-    </symbol>
-    <symbol id="back" viewBox="0 0 100 172">
-      <rect x="1.5" y="1.5" width="97" height="169" rx="8" fill="#f4ecd8" stroke="#cdbd97" stroke-width="2"/>
-      <rect x="7" y="7" width="86" height="158" rx="5" fill="url(#lattice)"/>
-      <rect x="7" y="7" width="86" height="158" rx="5" fill="none" stroke="#e2b24c" stroke-width="2"/>
-      <ellipse cx="50" cy="86" rx="20" ry="28" fill="#7b1d18" stroke="#e2b24c" stroke-width="2.5"/>
-      <text x="50" y="96" text-anchor="middle" font-family="Bodoni Moda, Georgia, serif" font-style="italic" font-weight="700" font-size="28" fill="#e2b24c">S</text>
     </symbol>
   </defs>
 </svg>
@@ -513,6 +510,7 @@ details.rules b { color: var(--chalk); }
         <li>Punti: <b>carte</b> (chi ne ha più di 20), <b>denari</b> (più di 5), <b>settebello</b> (il 7 di Denari), <b>primiera</b> e una per ogni scopa. In caso di pareggio il punto non va a nessuno.</li>
         <li><b>Primiera</b>: per ogni seme conta la carta migliore. 7 vale 21, 6 vale 18, Asso 16, 5 vale 15, 4 vale 14, 3 vale 13, 2 vale 12, le figure 10. Vince il totale più alto; serve almeno una carta per seme.</li>
         <li>Nello <b>scopone</b> si gioca in coppia con chi sta di fronte, in senso antiorario. Le prese e le scope della coppia si sommano.</li>
+        <li>Le carte sono le scansioni di un mazzo napoletano pubblicate su Wikimedia Commons da Trocche100, in pubblico dominio.</li>
       </ul>
     </details>
   </div>
@@ -531,7 +529,6 @@ details.rules b { color: var(--chalk); }
 /* ================= mazzo ================= */
 const SUITS = ["D", "C", "S", "B"];
 const SUIT_NAMES = { D: "Denari", C: "Coppe", S: "Spade", B: "Bastoni" };
-const SUIT_COL = { D: "#8a5d0c", C: "#a8231b", S: "#1f3f86", B: "#2d6630" };
 const FIG = { 8: "Fante", 9: "Cavallo", 10: "Re" };
 const PRIME = { 1: 16, 2: 12, 3: 13, 4: 14, 5: 15, 6: 18, 7: 21, 8: 10, 9: 10, 10: 10 };
 const ALL = [];
@@ -550,42 +547,11 @@ function shuffle(a) {
   return a;
 }
 
-/* ================= disegno carte ================= */
-const PIPS = {
-  1: [[50, 86, 60]],
-  2: [[50, 50, 40], [50, 122, 40]],
-  3: [[50, 38, 34], [50, 86, 34], [50, 134, 34]],
-  4: [[30, 50, 32], [70, 50, 32], [30, 122, 32], [70, 122, 32]],
-  5: [[30, 46, 30], [70, 46, 30], [50, 86, 30], [30, 126, 30], [70, 126, 30]],
-  6: [[30, 40, 28], [70, 40, 28], [30, 86, 28], [70, 86, 28], [30, 132, 28], [70, 132, 28]],
-  7: [[30, 38, 26], [70, 38, 26], [50, 62, 26], [30, 92, 26], [70, 92, 26], [30, 134, 26], [70, 134, 26]],
-};
-const EMBLEM = {
-  8: col => `<ellipse cx="50" cy="60" rx="17" ry="5.5" fill="${col}"/><path d="M48 56Q58 36 72 40Q60 45 55 57Z" fill="${col}"/>`,
-  9: col => `<path d="M37 41C37 68 63 68 63 41" fill="none" stroke="${col}" stroke-width="6" stroke-linecap="round"/>`,
-  10: col => `<path d="M31 62V45L41 53L50 39L59 53L69 45V62Z" fill="${col}" stroke-linejoin="round"/>`,
-};
-const svgCache = {};
-function cardSVG(c) {
-  if (svgCache[c.id]) return svgCache[c.id];
-  const col = SUIT_COL[c.s];
-  let body = "";
-  if (c.v <= 7) {
-    for (const [x, y, z] of PIPS[c.v]) body += `<use href="#s-${c.s}" x="${x - z / 2}" y="${y - z / 2}" width="${z}" height="${z}"/>`;
-  } else {
-    body = `<rect x="15" y="32" width="70" height="108" rx="6" fill="${col}" fill-opacity=".1" stroke="${col}" stroke-opacity=".5"/>`
-      + EMBLEM[c.v](col)
-      + `<use href="#s-${c.s}" x="28" y="72" width="44" height="44"/>`
-      + `<text x="50" y="133" text-anchor="middle" class="fig" fill="${col}">${FIG[c.v].toUpperCase()}</text>`;
-  }
-  const corner = `<text x="10" y="27" class="cv" fill="${col}">${c.v}</text>`;
-  const svg = `<svg viewBox="0 0 100 172" aria-hidden="true">`
-    + `<rect x="1.5" y="1.5" width="97" height="169" rx="8" fill="#f4ecd8" stroke="#cdbd97" stroke-width="2"/>`
-    + `<rect x="6.5" y="6.5" width="87" height="159" rx="5" fill="none" stroke="${col}" stroke-opacity=".35" stroke-width="1.2"/>`
-    + body + corner + `<g transform="rotate(180 50 86)">${corner}</g></svg>`;
-  return (svgCache[c.id] = svg);
-}
-const BACK = `<svg viewBox="0 0 100 172" aria-hidden="true"><use href="#back"/></svg>`;
+/* ================= carte ================= */
+// Scansioni del mazzo napoletano da Wikimedia Commons (pubblico dominio, Trocche100).
+const IMG = id => "carte/" + id + ".webp";
+const cardFace = c => `<img src="${IMG(c.id)}" alt="" draggable="false">`;
+const BACK = `<img src="${IMG("back")}" alt="" draggable="false">`;
 const pipIcon = s => `<svg class="pip" viewBox="0 0 100 100" aria-hidden="true"><use href="#s-${s}"/></svg>`;
 const shortCard = c => `${c.v === 1 ? "A" : c.v}${pipIcon(c.s)}`;
 
@@ -893,7 +859,7 @@ const rectOf = el => { const r = el.getBoundingClientRect(); return { x: r.left,
 function makeFlyer(c, r) {
   const d = document.createElement("div");
   d.className = "card flyer";
-  d.innerHTML = c ? cardSVG(c) : BACK;
+  d.innerHTML = c ? cardFace(c) : BACK;
   d.style.width = r.w + "px";
   d.style.height = r.h + "px";
   d.style.transform = `translate(${r.x}px,${r.y}px)`;
@@ -912,7 +878,7 @@ function flyTo(d, from, to, dur, fade) {
 }
 function tableCardSize() {
   const pr = $(".probe");
-  const r = pr ? pr.getBoundingClientRect() : { width: 70, height: 120 };
+  const r = pr ? pr.getBoundingClientRect() : { width: 70, height: 116 };
   return { w: r.width, h: r.height };
 }
 function sourceRect(p, card) {
@@ -929,7 +895,7 @@ function sourceRect(p, card) {
 }
 function pileRect(t) {
   const r = rectOf($(`#pile-${t}`));
-  return { x: r.x + r.w / 2 - 14, y: r.y, w: 28, h: 48 };
+  return { x: r.x + r.w / 2 - 14, y: r.y, w: 28, h: 46 };
 }
 async function flyToPile(cards, t) {
   const dest = pileRect(t);
@@ -1040,7 +1006,7 @@ function renderBoard() {
   const hintIds = new Set(ui.hint?.opt ? ui.hint.opt.cards.map(c => c.id) : []);
   const tcards = S.table.map(c => {
     const cls = [pick.has(c.id) ? "pick" : can.has(c.id) ? "can" : "", hintIds.has(c.id) ? "hint" : ""].join(" ");
-    return `<button type="button" class="card ${cls}" data-id="${c.id}" aria-label="${cardName(c)}"${ui.sel && can.has(c.id) ? "" : " disabled"}>${cardSVG(c)}</button>`;
+    return `<button type="button" class="card ${cls}" data-id="${c.id}" aria-label="${cardName(c)}"${ui.sel && can.has(c.id) ? "" : " disabled"}>${cardFace(c)}</button>`;
   }).join("");
   html += `<section class="felt-table" id="table" aria-label="Carte in tavola">
     <div class="card probe" aria-hidden="true"></div>
@@ -1064,7 +1030,7 @@ function renderBoard() {
   html += `<section class="zone bottom${myTurn ? " active" : ""}" id="zone-0">
     <div class="hand${myTurn ? "" : " waiting"}" id="hand">${hand.map(c => {
       const cls = [ui.sel === c.id ? "sel" : "", ui.hint && ui.hint.card.id === c.id ? "hint" : ""].join(" ");
-      return `<button type="button" class="card ${cls}" data-id="${c.id}" aria-label="${cardName(c)}"${myTurn ? "" : " disabled"}>${cardSVG(c)}</button>`;
+      return `<button type="button" class="card ${cls}" data-id="${c.id}" aria-label="${cardName(c)}"${myTurn ? "" : " disabled"}>${cardFace(c)}</button>`;
     }).join("")}</div>
     <div class="who"><span class="dot"></span><b>Tu</b>${S.mode === "scopone" ? " con Rosa" : ""}</div>
   </section>`;
@@ -1216,7 +1182,7 @@ addEventListener("resize", () => { if (!busy) fitHand(); });
 
 /* ventaglio del menu */
 $("#fan").innerHTML = [{ s: "C", v: 1, id: "C1" }, { s: "D", v: 7, id: "D7" }, { s: "S", v: 10, id: "S10" }]
-  .map(c => `<div class="card">${cardSVG(c)}</div>`).join("");
+  .map(c => `<div class="card">${cardFace(c)}</div>`).join("");
 
 /* aggiornamenti dal vivo: la partita in corso sopravvive a una ripubblicazione */
 window.claude?.hot?.snapshot?.(() => (S ? { S: JSON.parse(JSON.stringify(S)) } : {}));

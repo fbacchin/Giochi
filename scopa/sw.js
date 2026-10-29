@@ -1,8 +1,9 @@
 /* Service worker: la pagina si aggiorna da sola, il gioco resta giocabile senza rete.
    La versione della cache è un'impronta del contenuto, allineata da aggiorna-cache.sh:
    cambia a ogni modifica del gioco, così la copia vecchia non resta mai sul dispositivo. */
-const CACHE = 'giochi-scopa-22db893f02';
-const ASSETS = ['.', 'index.html', 'manifest.webmanifest', 'icon-180.png', 'icon-512.png'];
+const CACHE = 'giochi-scopa-ee8c32ff13';
+const CARTE = ['D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'D7', 'D8', 'D9', 'D10', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9', 'C10', 'S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9', 'S10', 'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B9', 'B10', 'back'].map(id => 'carte/' + id + '.webp');
+const ASSETS = ['.', 'index.html', 'manifest.webmanifest', 'icon-180.png', 'icon-512.png', ...CARTE];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
