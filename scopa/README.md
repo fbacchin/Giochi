@@ -11,6 +11,8 @@ build, funziona anche offline (senza rete i caratteri ripiegano su quelli di sis
 - Tocca una carta della mano. Se c'è una sola presa possibile la fa subito; se ce ne
   sono più di una, scegli quale dai pulsanti sotto la tavola oppure toccando le carte.
 - **Consiglio** mostra la mossa che giocherebbe un avversario esperto.
+- Il pulsante con l'altoparlante, in alto a destra, spegne e riaccende i suoni;
+  la scelta resta salvata sul dispositivo.
 
 ## Regole
 
@@ -41,6 +43,7 @@ uscite per stimare cosa ha in mano chi gioca dopo.
 | --- | --- |
 | `index.html` | Tutto il gioco: markup, CSS, regole e avversari |
 | `carte/` | Le 40 carte e il dorso, WebP 320×529 |
+| `suoni/` | Effetti sonori, mp3 mono 64 kb/s |
 | `manifest.webmanifest` | Metadati PWA |
 | `sw.js` | Service worker per l'uso offline |
 | `icon-180.png` / `icon-512.png` | Icone per home screen e install |
@@ -58,3 +61,10 @@ alle proporzioni delle carte e virato in rosso scuro.
 Sono scansioni di un mazzo stampato moderno: l'Asso di Denari porta la scritta
 «Dal Negro Treviso». Il disegno napoletano ha secoli, ma il pubblico dominio di
 queste immagini si basa solo sulla dichiarazione di chi le ha caricate.
+
+## I suoni
+
+Rumori di carte (`place`, `capture`, `deal`, `shuffle`) dal pacchetto «Casino Audio» 1.1
+e jingle (`scopa` = `jingles_PIZZI10`, `win` = `jingles_PIZZI02`) da «Music Jingles»,
+entrambi di Kenney (<https://kenney.nl>), licenza **CC0 1.0**. Modifiche: silenzi
+tagliati, volume livellato, convertiti in mp3 mono; il mescolio accorciato a 1,8 s.

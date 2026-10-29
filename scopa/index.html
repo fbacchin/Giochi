@@ -102,6 +102,24 @@ button { font: inherit; color: inherit; }
 .vs i { font-family: var(--f-display); font-size: 18px; color: var(--chalk); font-style: italic; }
 .deck { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--chalk-dim); font-variant-numeric: tabular-nums; }
 .deck .card { width: 22px; }
+.btn-sound {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--chalk) 30%, transparent);
+  background: transparent;
+  color: var(--chalk);
+  cursor: pointer;
+}
+.btn-sound:hover { background: color-mix(in srgb, var(--chalk) 10%, transparent); }
+.btn-sound svg { width: 18px; height: 18px; }
+.btn-sound .off, .btn-sound[aria-pressed="false"] .on { display: none; }
+.btn-sound[aria-pressed="false"] .off { display: block; }
+.btn-sound[aria-pressed="false"] { color: var(--chalk-dim); }
 
 /* ---------- tavolo ---------- */
 .board {
@@ -432,6 +450,10 @@ details.rules b { color: var(--chalk); }
     <button class="btn-ghost" id="btn-menu" type="button">Menu</button>
     <div class="score" id="score"></div>
     <div class="deck" id="deck"></div>
+    <button class="btn-sound" id="btn-sound" type="button" aria-pressed="true" aria-label="Effetti sonori" title="Effetti sonori">
+      <svg class="on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor" stroke="none"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>
+      <svg class="off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor" stroke="none"/><path d="M17 9l5 6M22 9l-5 6"/></svg>
+    </button>
   </header>
   <main class="board" id="board" data-mode="scopa"></main>
 </div>
@@ -510,7 +532,7 @@ details.rules b { color: var(--chalk); }
         <li>Punti: <b>carte</b> (chi ne ha più di 20), <b>denari</b> (più di 5), <b>settebello</b> (il 7 di Denari), <b>primiera</b> e una per ogni scopa. In caso di pareggio il punto non va a nessuno.</li>
         <li><b>Primiera</b>: per ogni seme conta la carta migliore. 7 vale 21, 6 vale 18, Asso 16, 5 vale 15, 4 vale 14, 3 vale 13, 2 vale 12, le figure 10. Vince il totale più alto; serve almeno una carta per seme.</li>
         <li>Nello <b>scopone</b> si gioca in coppia con chi sta di fronte, in senso antiorario. Le prese e le scope della coppia si sommano.</li>
-        <li>Le carte sono le scansioni di un mazzo napoletano pubblicate su Wikimedia Commons da Trocche100, in pubblico dominio.</li>
+        <li>Le carte sono le scansioni di un mazzo napoletano pubblicate su Wikimedia Commons da Trocche100, in pubblico dominio. I suoni sono di Kenney (kenney.nl), CC0.</li>
       </ul>
     </details>
   </div>
@@ -561,10 +583,69 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* niente */ } },
 };
 const prefs = Object.assign(
-  { mode: "scopa", diff: "medio", targetScopa: 11, targetScopone: 21, variant: "scientifico", asso: false, napola: false },
+  { mode: "scopa", diff: "medio", targetScopa: 11, targetScopone: 21, variant: "scientifico", asso: false, napola: false, sound: true },
   store.get("scopa.prefs", {})
 );
 const stats = Object.assign({ scopa: { w: 0, l: 0 }, scopone: { w: 0, l: 0 } }, store.get("scopa.stats", {}));
+
+/* ================= suoni ================= */
+// Rumori di carte da "Casino Audio" e jingle da "Music Jingles" di Kenney (CC0).
+const SND_DATA = null;
+const SOUNDS = {
+  place: ["place1", "place2", "place3", "place4"],
+  capture: ["capture1", "capture2", "capture3"],
+  deal: ["deal1", "deal2"],
+  shuffle: ["shuffle"],
+  scopa: ["scopa"],
+  win: ["win"],
+};
+const snd = { ctx: null, buf: {}, ready: null };
+async function soundBytes(name) {
+  if (SND_DATA) {
+    const bin = atob(SND_DATA[name]);
+    const u8 = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    return u8.buffer;
+  }
+  const r = await fetch("suoni/" + name + ".mp3");
+  if (!r.ok) throw new Error(r.status);
+  return r.arrayBuffer();
+}
+// il browser lascia suonare solo dopo un tocco: il contesto audio nasce al primo
+function audioUnlock() {
+  if (snd.ctx) { if (snd.ctx.state === "suspended") snd.ctx.resume().catch(() => {}); return; }
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return;
+  try { snd.ctx = new AC(); } catch { return; }
+  const names = Object.values(SOUNDS).flat();
+  snd.ready = Promise.all(names.map(async n => {
+    try {
+      const ab = await soundBytes(n);
+      snd.buf[n] = await new Promise((ok, ko) => snd.ctx.decodeAudioData(ab, ok, ko));
+    } catch { /* senza quel suono si gioca lo stesso */ }
+  }));
+}
+function sfx(kind, vol = 1) {
+  if (!prefs.sound || !snd.ctx) return;
+  const list = SOUNDS[kind];
+  const name = list[Math.floor(Math.random() * list.length)];
+  const play = () => {
+    const b = snd.buf[name];
+    if (!b) return;
+    const src = snd.ctx.createBufferSource();
+    src.buffer = b;
+    if (kind !== "scopa" && kind !== "win") src.playbackRate.value = 0.94 + Math.random() * 0.12;
+    const g = snd.ctx.createGain();
+    g.gain.value = vol;
+    src.connect(g).connect(snd.ctx.destination);
+    src.start();
+  };
+  if (snd.buf[name]) return play();
+  const t0 = performance.now();
+  snd.ready?.then(() => { if (performance.now() - t0 < 700) play(); });
+}
+addEventListener("pointerdown", audioUnlock, true);
+addEventListener("keydown", audioUnlock, true);
 
 /* ================= stato ================= */
 let S = null;          // partita
@@ -618,6 +699,7 @@ function newRound() {
   S.phase = "play";
   S.msg = S.round === 1 ? "Si comincia." : `Smazzata ${S.round}. Distribuisce ${S.dealer === 0 ? "tu" : NAMES[S.mode][S.dealer]}.`;
   ui = { sel: null, opts: [], pick: [], hint: null };
+  sfx("shuffle", 0.8);
 }
 
 function dealHands(k) {
@@ -798,6 +880,7 @@ async function play(p, card, opt) {
   busy = false;
   if (res.scopa) {
     showToast("Scopa!");
+    sfx("scopa");
     S.msg = `<b>Scopa</b> ${isHuman(p) ? "tua" : team(p) === 0 ? "di Rosa" : "di " + NAMES[S.mode][p]}! ` + what;
   }
   afterMove();
@@ -809,6 +892,8 @@ function afterMove() {
   if (S.hands.every(h => !h.length)) {
     if (S.deck.length) {
       dealHands(3);
+      sfx("deal", 0.7);
+      setTimeout(() => sfx("deal", 0.6), 160);
     } else {
       finishRound();
       return;
@@ -824,6 +909,7 @@ async function finishRound() {
     const t = S.lastCapturer;
     setMsg(`Le carte rimaste in tavola vanno a <b>${teamLabel(t)}</b>: ultima presa.`);
     await wait(RM ? 100 : 700);
+    sfx("capture");
     try { await flyToPile([...S.table], t); } catch { /* niente */ }
     S.piles[t].push(...S.table);
     S.table = [];
@@ -836,6 +922,7 @@ async function finishRound() {
   if ((S.scores[0] >= tg || S.scores[1] >= tg) && S.scores[0] !== S.scores[1]) {
     S.phase = "over";
     S.winner = S.scores[0] > S.scores[1] ? 0 : 1;
+    if (S.winner === 0) setTimeout(() => sfx("win"), 300);
     stats[S.mode][S.winner === 0 ? "w" : "l"]++;
     store.set("scopa.stats", stats);
   } else {
@@ -927,6 +1014,7 @@ async function animateMove(p, card, opt) {
     if (dst) {
       dst.style.visibility = "hidden";
       await flyTo(f, from, rectOf(dst), 420);
+      sfx("place");
       dst.style.visibility = "";
     }
     f.remove();
@@ -936,10 +1024,12 @@ async function animateMove(p, card, opt) {
   const tr = first ? rectOf(first) : from;
   const to = { x: tr.x + tr.w * 0.22, y: tr.y + tr.h * 0.14, w: tr.w, h: tr.h };
   await flyTo(f, from, to, 420);
+  sfx("place");
   for (const c of opt.cards) $(`#table [data-id="${c.id}"]`)?.classList.add("taken");
   await wait(RM ? 200 : 650);
   const t = team(p);
   const dest = pileRect(t);
+  sfx("capture");
   const moving = flyTo(f, to, dest, 480, true).then(() => f.remove());
   await Promise.all([moving, flyToPile(opt.cards, t)]);
   const res = applyMove(p, card, opt);
@@ -1153,6 +1243,12 @@ document.addEventListener("click", e => {
     return render();
   }
   switch (t.id) {
+    case "btn-sound":
+      prefs.sound = !prefs.sound;
+      savePrefs();
+      t.setAttribute("aria-pressed", prefs.sound);
+      if (prefs.sound) sfx("place");
+      break;
     case "btn-menu": if (S) { S.menu = true; } render(); break;
     case "btn-resume": S.menu = false; advance(); break;
     case "btn-start": startFromMenu(); break;
@@ -1179,6 +1275,7 @@ function startFromMenu() {
   advance();
 }
 addEventListener("resize", () => { if (!busy) fitHand(); });
+$("#btn-sound").setAttribute("aria-pressed", prefs.sound);
 
 /* ventaglio del menu */
 $("#fan").innerHTML = [{ s: "C", v: 1, id: "C1" }, { s: "D", v: 7, id: "D7" }, { s: "S", v: 10, id: "S10" }]
